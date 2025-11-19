@@ -1,0 +1,1 @@
+web: gunicorn App_Ficha_Atendimento_n8n_Final:app
