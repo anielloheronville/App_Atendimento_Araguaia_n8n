@@ -19,7 +19,6 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 
 # --- LISTA DE EMPREENDIMENTOS (Dropdown) ---
 OPCOES_EMPREENDIMENTOS = [
-    
     "Jardim dos Ipês",
     "Jardim Amazônia ET. 3",
     "Jardim Amazônia ET. 4",
@@ -33,7 +32,7 @@ OPCOES_EMPREENDIMENTOS = [
     "Santa Fé",
     "Colina Verde",
     "Res. Terra de Santa Cruz",
-    "Consórcio Gran Ville",
+    "Consórcio Gran Ville"
     "Consórcio Parque Cerrado",
     "Consórcio Recanto da Mata",
     "Jardim Vila Rica",
@@ -50,11 +49,21 @@ OPCOES_EMPREENDIMENTOS = [
     "Residencial Vila Rica SINOP"
 ]
 
+# --- LISTA DE CORRETORES (Do Excel) ---
+OPCOES_CORRETORES = [
+    "4083 - NEURA.T.PAVAN SINIGAGLIA",
+    "2796 - PEDRO LAERTE RABECINI",
+    "57 - Santos e Padilha Ltda - ME",
+    "1376 - VALMIR MARIO TOMASI",
+    "4802 - CESAR AUGUSTO PORTELA DA FONSECA JUNIOR LTDA",
+    "4868 - LENE ENGLER DA SILVA",
+    "4872 - WQ CORRETORES LTDA (WALMIR QUEIROZ)",
+    "4084 - JAIMIR COMPAGNONI",
+    "Outro / Não Listado"
+]
+
 # --- BANCO DE DADOS (COM MIGRAÇÃO AUTOMÁTICA) ---
 def init_db():
-    """
-    Verifica a tabela e cria as colunas novas se elas não existirem.
-    """
     if not DATABASE_URL:
         logger.warning("⚠️ AVISO: DATABASE_URL não encontrada. O app não salvará dados.")
         return
@@ -106,7 +115,7 @@ def init_db():
 # --- INICIALIZA O BANCO ---
 init_db()
 
-# --- TEMPLATE HTML (DESIGN ARAGUAIA + CAM SWITCH) ---
+# --- TEMPLATE HTML ---
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -114,7 +123,9 @@ HTML_TEMPLATE = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Araguaia Imóveis - Ficha Digital</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonte Montserrat -->
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
     
     <style>
@@ -205,6 +216,7 @@ HTML_TEMPLATE = """
 </head>
 <body class="flex flex-col min-h-screen">
     
+    <!-- CABEÇALHO -->
     <header class="w-full p-6 text-center">
         <h1 class="text-4xl md:text-5xl logo-text text-white">Araguaia</h1>
         <h2 class="text-xl md:text-2xl font-semibold text-white mt-1">Imóveis</h2>
@@ -219,6 +231,7 @@ HTML_TEMPLATE = """
             
             <form id="preAtendimentoForm" class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                 
+                <!-- COLUNA 1 -->
                 <div class="flex flex-col gap-5">
                     <div>
                         <label for="nome" class="block text-sm font-semibold mb-2 text-white">Nome do Cliente*</label>
@@ -267,8 +280,10 @@ HTML_TEMPLATE = """
                     </div>
                 </div>
 
+                <!-- COLUNA 2 -->
                 <div class="flex flex-col gap-5">
                     
+                    <!-- FOTO -->
                     <div class="p-4 rounded-lg bg-black/20 border border-white/10">
                         <label class="block text-sm font-semibold mb-3 text-white">Foto do Cliente</label>
                         <div class="flex flex-col items-center gap-3">
@@ -281,15 +296,12 @@ HTML_TEMPLATE = """
                                 <button type="button" id="startWebcam" class="text-xs bg-gray-700 text-white px-3 py-2 rounded hover:bg-gray-600 font-semibold uppercase">
                                     📷 Abrir Câmera
                                 </button>
-                                
                                 <button type="button" id="switchCamera" class="hidden text-xs bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-500 font-semibold uppercase">
                                     🔄 Inverter
                                 </button>
-
                                 <button type="button" id="takePhoto" class="hidden text-xs bg-green-600 text-white px-3 py-2 rounded hover:bg-green-500 font-semibold uppercase">
                                     📸 Capturar
                                 </button>
-                                
                                 <button type="button" id="clearPhoto" class="hidden text-xs text-red-400 underline">
                                     Remover
                                 </button>
@@ -315,9 +327,15 @@ HTML_TEMPLATE = """
                             </div>
                         </div>
                         
+                        <!-- CAMPO CORRETOR (Dropdown Condicional) -->
                         <div id="campoNomeCorretor" class="hidden animate-fade-in p-3 bg-[#8cc63f]/10 border border-[#8cc63f] rounded-md">
-                            <label for="nome_corretor" class="block text-sm font-bold mb-1 text-[#8cc63f]">Nome do Corretor:</label>
-                            <input type="text" id="nome_corretor" name="nome_corretor" class="form-input font-semibold" placeholder="Digite o nome do corretor">
+                            <label for="nome_corretor" class="block text-sm font-bold mb-1 text-[#8cc63f]">Selecione o Corretor:</label>
+                            <select id="nome_corretor" name="nome_corretor" class="form-select font-semibold">
+                                <option value="" disabled selected>Selecione um corretor...</option>
+                                {% for corretor in corretores %}
+                                    <option value="{{ corretor }}">{{ corretor }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
 
                         <div>
@@ -362,8 +380,6 @@ HTML_TEMPLATE = """
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            
-            // --- INICIALIZAÇÃO ---
             const today = new Date();
             document.getElementById('dataAtual').innerText = `Sorriso/MT, ${today.toLocaleDateString('pt-BR')}`;
             document.getElementById('currentYear').innerText = today.getFullYear();
@@ -380,7 +396,6 @@ HTML_TEMPLATE = """
                 if(atendidoSim.checked) {
                     campoNome.classList.remove('hidden');
                     inputNomeCorretor.required = true;
-                    setTimeout(() => inputNomeCorretor.focus(), 100);
                 } else {
                     campoNome.classList.add('hidden');
                     inputNomeCorretor.required = false;
@@ -390,7 +405,7 @@ HTML_TEMPLATE = """
             atendidoSim.addEventListener('change', toggleCorretor);
             atendidoNao.addEventListener('change', toggleCorretor);
 
-            // --- CÂMERA (COM INVERSÃO) ---
+            // --- CÂMERA ---
             const video = document.getElementById('videoPreview');
             const photoCanvas = document.getElementById('photoCanvas');
             const photoCtx = photoCanvas.getContext('2d');
@@ -399,10 +414,7 @@ HTML_TEMPLATE = """
             const switchCameraBtn = document.getElementById('switchCamera');
             const clearPhotoBtn = document.getElementById('clearPhoto');
             const fotoHiddenInput = document.getElementById('foto_cliente_base64');
-            
             let stream = null;
-            // Padrão: 'environment' (Traseira) para tirar foto do cliente.
-            // Se for 'user' usa a frontal.
             let currentFacingMode = 'environment'; 
 
             function drawPlaceholder() {
@@ -418,44 +430,25 @@ HTML_TEMPLATE = """
             }
             drawPlaceholder();
 
-            // Função para iniciar a câmera com o modo atual
             async function startCamera() {
-                // Se já houver stream rodando, para tudo antes de reiniciar
-                if (stream) {
-                    stream.getTracks().forEach(track => track.stop());
-                }
-
+                if (stream) stream.getTracks().forEach(track => track.stop());
                 try {
-                    const constraints = {
-                        video: { facingMode: currentFacingMode },
-                        audio: false
-                    };
-                    
+                    const constraints = { video: { facingMode: currentFacingMode }, audio: false };
                     stream = await navigator.mediaDevices.getUserMedia(constraints);
                     video.srcObject = stream;
-                    
-                    // Ajustes de UI
                     video.classList.remove('hidden');
                     photoCanvas.classList.add('hidden');
-                    
                     takePhotoBtn.classList.remove('hidden');
                     switchCameraBtn.classList.remove('hidden');
                     clearPhotoBtn.classList.remove('hidden');
                     startWebcamBtn.classList.add('hidden');
-                    
                 } catch (err) {
-                    console.error("Erro na câmera:", err);
-                    alert("Não foi possível acessar a câmera. Verifique permissões HTTPS.");
+                    alert("Erro ao acessar a câmera. Verifique permissões HTTPS.");
                 }
             }
 
-            startWebcamBtn.addEventListener('click', () => {
-                startCamera();
-            });
-
-            // Botão Inverter Câmera
+            startWebcamBtn.addEventListener('click', () => startCamera());
             switchCameraBtn.addEventListener('click', () => {
-                // Alterna entre 'user' e 'environment'
                 currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
                 startCamera();
             });
@@ -463,27 +456,17 @@ HTML_TEMPLATE = """
             takePhotoBtn.addEventListener('click', () => {
                 photoCanvas.width = video.videoWidth;
                 photoCanvas.height = video.videoHeight;
-                
-                // Espelhar horizontalmente se for câmera frontal para ficar natural
                 if(currentFacingMode === 'user') {
                     photoCtx.translate(photoCanvas.width, 0);
                     photoCtx.scale(-1, 1);
                 }
-                
                 photoCtx.drawImage(video, 0, 0);
-                
-                // Restaura o contexto se foi espelhado
-                if(currentFacingMode === 'user') {
-                    photoCtx.setTransform(1, 0, 0, 1, 0, 0);
-                }
-
+                if(currentFacingMode === 'user') photoCtx.setTransform(1, 0, 0, 1, 0, 0);
                 fotoHiddenInput.value = photoCanvas.toDataURL('image/jpeg', 0.8);
                 video.classList.add('hidden');
                 photoCanvas.classList.remove('hidden');
-                
                 takePhotoBtn.classList.add('hidden');
-                switchCameraBtn.classList.add('hidden'); // Esconde o botão inverter após tirar foto
-                
+                switchCameraBtn.classList.add('hidden');
                 if(stream) stream.getTracks().forEach(t => t.stop());
             });
 
@@ -492,12 +475,10 @@ HTML_TEMPLATE = """
                 fotoHiddenInput.value = '';
                 video.classList.add('hidden');
                 photoCanvas.classList.remove('hidden');
-                
                 startWebcamBtn.classList.remove('hidden');
                 takePhotoBtn.classList.add('hidden');
                 switchCameraBtn.classList.add('hidden');
                 clearPhotoBtn.classList.add('hidden');
-                
                 if(stream) stream.getTracks().forEach(t => t.stop());
             });
 
@@ -588,7 +569,6 @@ HTML_TEMPLATE = """
                         statusMessage.innerText = "FICHA SALVA COM SUCESSO!";
                         statusMessage.className = "md:col-span-2 text-center p-4 rounded bg-[#8cc63f] text-[#263318] shadow-lg animate-bounce";
                         statusMessage.classList.remove('hidden');
-                        
                         form.reset();
                         sigCtx.clearRect(0,0,sigCanvas.width, sigCanvas.height);
                         drawPlaceholder();
@@ -703,8 +683,7 @@ def index():
             logger.error(f"Erro POST: {e}")
             return jsonify({'success': False, 'message': str(e)}), 500
 
-    return render_template_string(HTML_TEMPLATE, empreendimentos=OPCOES_EMPREENDIMENTOS)
+    return render_template_string(HTML_TEMPLATE, empreendimentos=OPCOES_EMPREENDIMENTOS, corretores=OPCOES_CORRETORES)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
