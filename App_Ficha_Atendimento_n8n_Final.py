@@ -36,7 +36,6 @@ def init_db():
         logger.warning("⚠️ AVISO: DATABASE_URL não encontrada. O app não salvará dados.")
         return
 
-    # 1. Query da Tabela Base
     create_table_query = '''
     CREATE TABLE IF NOT EXISTS atendimentos (
         id SERIAL PRIMARY KEY,
@@ -56,7 +55,6 @@ def init_db():
     )
     '''
 
-    # 2. Queries de Migração (Adicionar colunas novas se faltarem)
     migrations = [
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS comprou_1o_lote TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nivel_interesse TEXT;"
@@ -67,15 +65,13 @@ def init_db():
         conn.autocommit = True
         cursor = conn.cursor()
 
-        # Cria a tabela se não existir
         cursor.execute(create_table_query)
         
-        # Tenta aplicar as migrações
         for migration in migrations:
             try:
                 cursor.execute(migration)
-            except Exception as e_mig:
-                pass # Coluna provavelmente já existe
+            except Exception:
+                pass 
 
         cursor.close()
         conn.close()
@@ -84,10 +80,10 @@ def init_db():
     except Exception as e:
         logger.error(f"❌ Erro crítico ao inicializar Banco de Dados: {e}")
 
-# --- INICIALIZA O BANCO AO RODAR O SCRIPT ---
+# --- INICIALIZA O BANCO ---
 init_db()
 
-# --- TEMPLATE HTML (DESIGN ARAGUAIA IMÓVEIS) ---
+# --- TEMPLATE HTML (DESIGN ARAGUAIA + CAM SWITCH) ---
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -99,15 +95,10 @@ HTML_TEMPLATE = """
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
     
     <style>
-        /* CORES PERSONALIZADAS BASEADAS NO LOGO */
         :root {
-            /* Verde Musgo Profundo (Fundo do Logo) */
             --cor-bg-fundo: #263318; 
-            /* Verde um pouco mais claro para o formulário */
             --cor-bg-form: #324221;
-            /* Verde Lima Vibrante (O traço do logo) */
             --cor-acento: #8cc63f; 
-            
             --cor-texto-claro: #ffffff;
             --cor-texto-cinza: #d1d5db;
             --cor-borda: #4a5e35;
@@ -119,7 +110,6 @@ HTML_TEMPLATE = """
             font-family: 'Montserrat', sans-serif;
         }
 
-        /* Container do Formulário */
         .form-container {
             background-color: var(--cor-bg-form);
             border-radius: 0.75rem;
@@ -127,9 +117,8 @@ HTML_TEMPLATE = """
             border: 1px solid var(--cor-borda);
         }
 
-        /* Título Estilizado */
         .logo-text {
-            font-weight: 800; /* Extra Bold */
+            font-weight: 800;
             letter-spacing: -0.05em;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
@@ -142,9 +131,8 @@ HTML_TEMPLATE = """
             border-radius: 2px;
         }
 
-        /* Campos de Entrada */
         .form-input, .form-textarea, .form-select {
-            background-color: #263318; /* Mesma cor do fundo da página */
+            background-color: #263318;
             border: 1px solid var(--cor-borda);
             color: var(--cor-texto-claro);
             border-radius: 0.5rem;
@@ -159,10 +147,9 @@ HTML_TEMPLATE = """
             box-shadow: 0 0 0 2px rgba(140, 198, 63, 0.2);
         }
 
-        /* Botão Salvar */
         .btn-salvar {
             background-color: var(--cor-acento);
-            color: #1a2610; /* Texto escuro para contraste no verde lima */
+            color: #1a2610;
             font-weight: 800;
             padding: 0.85rem 2rem;
             border-radius: 0.5rem;
@@ -177,7 +164,6 @@ HTML_TEMPLATE = """
         }
         .btn-salvar:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        /* Canvas e Video */
         .signature-canvas, .photo-canvas, .video-preview {
             border: 2px dashed var(--cor-borda);
             border-radius: 0.5rem;
@@ -190,7 +176,6 @@ HTML_TEMPLATE = """
             text-decoration: underline;
             cursor: pointer;
         }
-        .btn-acao-secundaria:hover { color: var(--cor-acento); }
 
         .hidden { display: none; }
     </style>
@@ -269,10 +254,22 @@ HTML_TEMPLATE = """
                                 <video id="videoPreview" class="video-preview w-32 h-32 rounded-full object-cover hidden" autoplay playsinline></video>
                             </div>
                             
-                            <div class="flex gap-2">
-                                <button type="button" id="startWebcam" class="text-xs bg-gray-700 text-white px-3 py-2 rounded hover:bg-gray-600 font-semibold uppercase">📷 Abrir Câmera</button>
-                                <button type="button" id="takePhoto" class="text-xs bg-green-600 text-white px-3 py-2 rounded hover:bg-green-500 hidden font-semibold uppercase">📸 Capturar</button>
-                                <button type="button" id="clearPhoto" class="text-xs text-red-400 underline hidden">Remover</button>
+                            <div class="flex flex-wrap justify-center gap-2">
+                                <button type="button" id="startWebcam" class="text-xs bg-gray-700 text-white px-3 py-2 rounded hover:bg-gray-600 font-semibold uppercase">
+                                    📷 Abrir Câmera
+                                </button>
+                                
+                                <button type="button" id="switchCamera" class="hidden text-xs bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-500 font-semibold uppercase">
+                                    🔄 Inverter
+                                </button>
+
+                                <button type="button" id="takePhoto" class="hidden text-xs bg-green-600 text-white px-3 py-2 rounded hover:bg-green-500 font-semibold uppercase">
+                                    📸 Capturar
+                                </button>
+                                
+                                <button type="button" id="clearPhoto" class="hidden text-xs text-red-400 underline">
+                                    Remover
+                                </button>
                             </div>
                         </div>
                         <input type="hidden" id="foto_cliente_base64" name="foto_cliente_base64">
@@ -360,7 +357,6 @@ HTML_TEMPLATE = """
                 if(atendidoSim.checked) {
                     campoNome.classList.remove('hidden');
                     inputNomeCorretor.required = true;
-                    // Foca no campo automaticamente para agilizar
                     setTimeout(() => inputNomeCorretor.focus(), 100);
                 } else {
                     campoNome.classList.add('hidden');
@@ -371,18 +367,22 @@ HTML_TEMPLATE = """
             atendidoSim.addEventListener('change', toggleCorretor);
             atendidoNao.addEventListener('change', toggleCorretor);
 
-            // --- CÂMERA ---
+            // --- CÂMERA (COM INVERSÃO) ---
             const video = document.getElementById('videoPreview');
             const photoCanvas = document.getElementById('photoCanvas');
             const photoCtx = photoCanvas.getContext('2d');
             const startWebcamBtn = document.getElementById('startWebcam');
             const takePhotoBtn = document.getElementById('takePhoto');
+            const switchCameraBtn = document.getElementById('switchCamera');
             const clearPhotoBtn = document.getElementById('clearPhoto');
             const fotoHiddenInput = document.getElementById('foto_cliente_base64');
+            
             let stream = null;
+            // Padrão: 'environment' (Traseira) para tirar foto do cliente.
+            // Se for 'user' usa a frontal.
+            let currentFacingMode = 'environment'; 
 
             function drawPlaceholder() {
-                // Desenha um ícone de usuário genérico
                 photoCtx.fillStyle = '#324221';
                 photoCtx.fillRect(0, 0, photoCanvas.width, photoCanvas.height);
                 photoCtx.fillStyle = '#8cc63f';
@@ -395,28 +395,72 @@ HTML_TEMPLATE = """
             }
             drawPlaceholder();
 
-            startWebcamBtn.addEventListener('click', async () => {
+            // Função para iniciar a câmera com o modo atual
+            async function startCamera() {
+                // Se já houver stream rodando, para tudo antes de reiniciar
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+
                 try {
-                    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    const constraints = {
+                        video: { facingMode: currentFacingMode },
+                        audio: false
+                    };
+                    
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
                     video.srcObject = stream;
+                    
+                    // Ajustes de UI
                     video.classList.remove('hidden');
                     photoCanvas.classList.add('hidden');
+                    
                     takePhotoBtn.classList.remove('hidden');
+                    switchCameraBtn.classList.remove('hidden');
                     clearPhotoBtn.classList.remove('hidden');
                     startWebcamBtn.classList.add('hidden');
+                    
                 } catch (err) {
-                    alert("Erro ao acessar câmera. Verifique se o site tem permissão HTTPS.");
+                    console.error("Erro na câmera:", err);
+                    alert("Não foi possível acessar a câmera. Verifique permissões HTTPS.");
                 }
+            }
+
+            startWebcamBtn.addEventListener('click', () => {
+                startCamera();
+            });
+
+            // Botão Inverter Câmera
+            switchCameraBtn.addEventListener('click', () => {
+                // Alterna entre 'user' e 'environment'
+                currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+                startCamera();
             });
 
             takePhotoBtn.addEventListener('click', () => {
                 photoCanvas.width = video.videoWidth;
                 photoCanvas.height = video.videoHeight;
+                
+                // Espelhar horizontalmente se for câmera frontal para ficar natural
+                if(currentFacingMode === 'user') {
+                    photoCtx.translate(photoCanvas.width, 0);
+                    photoCtx.scale(-1, 1);
+                }
+                
                 photoCtx.drawImage(video, 0, 0);
+                
+                // Restaura o contexto se foi espelhado
+                if(currentFacingMode === 'user') {
+                    photoCtx.setTransform(1, 0, 0, 1, 0, 0);
+                }
+
                 fotoHiddenInput.value = photoCanvas.toDataURL('image/jpeg', 0.8);
                 video.classList.add('hidden');
                 photoCanvas.classList.remove('hidden');
+                
                 takePhotoBtn.classList.add('hidden');
+                switchCameraBtn.classList.add('hidden'); // Esconde o botão inverter após tirar foto
+                
                 if(stream) stream.getTracks().forEach(t => t.stop());
             });
 
@@ -425,9 +469,12 @@ HTML_TEMPLATE = """
                 fotoHiddenInput.value = '';
                 video.classList.add('hidden');
                 photoCanvas.classList.remove('hidden');
+                
                 startWebcamBtn.classList.remove('hidden');
                 takePhotoBtn.classList.add('hidden');
+                switchCameraBtn.classList.add('hidden');
                 clearPhotoBtn.classList.add('hidden');
+                
                 if(stream) stream.getTracks().forEach(t => t.stop());
             });
 
@@ -440,7 +487,7 @@ HTML_TEMPLATE = """
                 const rect = sigCanvas.getBoundingClientRect();
                 sigCanvas.width = rect.width;
                 sigCanvas.height = rect.height;
-                sigCtx.strokeStyle = "#8cc63f"; // Assinatura na cor do acento
+                sigCtx.strokeStyle = "#8cc63f";
                 sigCtx.lineWidth = 2;
             }
             window.addEventListener('resize', resizeCanvas);
@@ -496,12 +543,10 @@ HTML_TEMPLATE = """
                 btn.disabled = true;
                 btn.innerText = 'ENVIANDO...';
 
-                // Captura dados
                 const formData = new FormData(form);
                 const data = {};
                 formData.forEach((val, key) => data[key] = val);
 
-                // Tratamento Booleans
                 data.esteve_plantao = (data.esteve_plantao === 'sim') ? 1 : 0;
                 data.foi_atendido = (data.foi_atendido === 'sim') ? 1 : 0;
                 data.autoriza_transmissao = (data.autoriza_transmissao === 'sim') ? 1 : 0;
@@ -521,13 +566,10 @@ HTML_TEMPLATE = """
                         statusMessage.className = "md:col-span-2 text-center p-4 rounded bg-[#8cc63f] text-[#263318] shadow-lg animate-bounce";
                         statusMessage.classList.remove('hidden');
                         
-                        // Reset form
                         form.reset();
                         sigCtx.clearRect(0,0,sigCanvas.width, sigCanvas.height);
                         drawPlaceholder();
                         toggleCorretor();
-                        
-                        // Scroll to message
                         statusMessage.scrollIntoView({ behavior: 'smooth' });
                     } else {
                         throw new Error(res.message);
@@ -547,7 +589,7 @@ HTML_TEMPLATE = """
 </html>
 """
 
-# --- Funções Auxiliares ---
+# --- AUXILIARES ---
 def formatar_telefone_n8n(telefone_bruto):
     try:
         numeros = ''.join(filter(str.isdigit, telefone_bruto))
@@ -557,7 +599,7 @@ def formatar_telefone_n8n(telefone_bruto):
     except:
         return None
 
-# --- ROTAS DA APLICAÇÃO ---
+# --- ROTAS ---
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
@@ -567,7 +609,6 @@ def index():
         try:
             data = request.json
             
-            # Validação Básica
             nome = data.get('nome')
             cidade = data.get('cidade')
             telefone_formatado = formatar_telefone_n8n(data.get('telefone'))
@@ -577,27 +618,19 @@ def index():
             if not nome or not cidade:
                 return jsonify({'success': False, 'message': 'Nome e Cidade são obrigatórios.'}), 400
 
-            # Dados
             rede_social = data.get('rede_social')
             abordagem_inicial = data.get('abordagem_inicial')
             loteamento = data.get('loteamento')
             comprou_1o_lote = data.get('comprou_1o_lote')
             nivel_interesse = data.get('nivel_interesse')
-            
             esteve_plantao = data.get('esteve_plantao') == 1
             foi_atendido = data.get('foi_atendido') == 1
-            
-            # Lógica do Corretor
-            nome_corretor = None
-            if foi_atendido:
-                nome_corretor = data.get('nome_corretor')
-            
+            nome_corretor = data.get('nome_corretor') if foi_atendido else None
             autoriza_transmissao = data.get('autoriza_transmissao') == 1
             foto_cliente_base64 = data.get('foto_cliente_base64')
             assinatura_base64 = data.get('assinatura_base64')
             data_hora = datetime.datetime.now(datetime.timezone.utc)
 
-            # Inserção no Banco
             insert_query = '''
                 INSERT INTO atendimentos (
                     data_hora, nome, telefone, rede_social, abordagem_inicial, 
@@ -624,7 +657,6 @@ def index():
             
             logger.info(f"Ficha salva ID: {ticket_id}")
 
-            # Envio N8N
             if N8N_WEBHOOK_URL:
                 try:
                     payload = {
