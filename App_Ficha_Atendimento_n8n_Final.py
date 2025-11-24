@@ -1,10 +1,14 @@
 import flask
-from flask import Flask, request, render_template_string, jsonify, Response
+from flask import Flask, request, render_template_string, jsonify
 import psycopg2
-import base64
 import os
 import datetime
 import requests
+import logging
+
+# --- Configuração de Logs ---
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # --- Configuração da Aplicação ---
 app = Flask(__name__)
@@ -13,7 +17,7 @@ app = Flask(__name__)
 N8N_WEBHOOK_URL = os.environ.get("N8N_WEBHOOK_URL")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# --- LISTA DE EMPREENDIMENTOS (Para o Dropdown) ---
+# --- LISTA DE EMPREENDIMENTOS (Dropdown) ---
 OPCOES_EMPREENDIMENTOS = [
     "Lançamento - Reserva do Bosque",
     "Lançamento - Altavista Premium",
@@ -23,57 +27,17 @@ OPCOES_EMPREENDIMENTOS = [
     "Outros"
 ]
 
-# --- DADOS DO LOGO (STRING COMPLETA E CORRIGIDA) ---
-LOGO_BASE64_STRING = (
-    "/9j/4AAQSkZJRgABAQEAYABgAAD/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAEAAAAAAAD/2wBDAAIBAQIBAQIB"
-    "AQQCAQIEAgICAgQDAgICAgUEBAMEBgUGBgYFBgYGBwkIBgcJBwYGCAsICQoKCgoKBgcLDAsKDAwL/2wBDAQICAgQDBAUD"
-    "BgYFBAQGBQcFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU/8AAEQgB9AH0AwEi"
-    "AAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUS"
-    "ITEGEkFRB2FxEyIygQgUQpGhscEJIzNS8BVictEKFiQ04SXxFxgZGiYnKCkqNTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZ"
-    "naGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5u"
-    "fo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUS"
-    "ITEGEkFRB2FxEyIygQgUQpGhscEJIzNS8BVictEKFicKGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2Rl"
-    "ZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OX"
-    "m5+jp6vLz9PX29/j5+v/aAAwDAQACEQMRAD8A/v4ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "KACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKK"
-    "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIC"
-    "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg"
-)
-
-# --- Banco de Dados ---
+# --- BANCO DE DADOS (COM MIGRAÇÃO AUTOMÁTICA) ---
 def init_db():
     """
-    Cria a tabela do banco de dados PostgreSQL se ela não existir.
+    Verifica a tabela e cria as colunas novas se elas não existirem.
+    Isso corrige o erro 'column does not exist'.
     """
     if not DATABASE_URL:
-        print("⚠️ AVISO: DATABASE_URL não encontrada. O app não conseguirá salvar no banco.")
+        logger.warning("⚠️ AVISO: DATABASE_URL não encontrada. O app não salvará dados.")
         return
 
+    # 1. Query da Tabela Base
     create_table_query = '''
     CREATE TABLE IF NOT EXISTS atendimentos (
         id SERIAL PRIMARY KEY,
@@ -89,28 +53,43 @@ def init_db():
         foto_cliente TEXT,
         assinatura TEXT,
         cidade TEXT,
-        loteamento TEXT,
-        comprou_1o_lote TEXT,
-        nivel_interesse TEXT
+        loteamento TEXT
     )
     '''
-    try:
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(create_table_query)
-                
-                # Tenta adicionar colunas novas caso a tabela já exista (migração simples)
-                try:
-                    cursor.execute("ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS comprou_1o_lote TEXT;")
-                    cursor.execute("ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nivel_interesse TEXT;")
-                except Exception as e_alter:
-                    print(f"Nota: Colunas já existem ou erro ao alterar: {e_alter}")
-                    
-        print("✅ Banco de dados conectado e tabela verificada.")
-    except Exception as e:
-        print(f"❌ Erro ao conectar no Banco: {e}")
 
-# --- Template HTML (LAYOUT COMPLETO + NOVOS CAMPOS) ---
+    # 2. Queries de Migração (Adicionar colunas novas)
+    migrations = [
+        "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS comprou_1o_lote TEXT;",
+        "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nivel_interesse TEXT;"
+    ]
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        conn.autocommit = True
+        cursor = conn.cursor()
+
+        # Cria a tabela se não existir
+        cursor.execute(create_table_query)
+        
+        # Tenta aplicar as migrações (ignora erro se já existirem)
+        for migration in migrations:
+            try:
+                cursor.execute(migration)
+                logger.info(f"Migração aplicada: {migration}")
+            except Exception as e_mig:
+                logger.info(f"Nota de migração (coluna provavelmnete já existe): {e_mig}")
+
+        cursor.close()
+        conn.close()
+        logger.info("✅ Banco de dados atualizado e pronto.")
+
+    except Exception as e:
+        logger.error(f"❌ Erro crítico ao inicializar Banco de Dados: {e}")
+
+# --- INICIALIZA O BANCO AO RODAR O SCRIPT ---
+init_db()
+
+# --- TEMPLATE HTML (SEM LOGO) ---
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -120,7 +99,6 @@ HTML_TEMPLATE = """
     <title>Ficha de Pré Atendimento - Araguaia Imóveis</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Cores personalizadas baseadas no design */
         :root {
             --cor-bg-fundo: #2d333b;
             --cor-bg-form: #3a414c;
@@ -156,10 +134,6 @@ HTML_TEMPLATE = """
         .form-input::placeholder, .form-textarea::placeholder {
             color: var(--cor-texto-medio);
         }
-        .form-radio-label {
-            color: var(--cor-texto-medio);
-            margin-left: 0.5rem;
-        }
         .btn-salvar {
             background-color: var(--cor-botao-verde);
             color: #2d333b;
@@ -167,32 +141,29 @@ HTML_TEMPLATE = """
             padding: 0.75rem 1.5rem;
             border-radius: 0.375rem;
             transition: all 0.2s;
+            cursor: pointer;
         }
-        .btn-salvar:hover {
-            opacity: 0.85;
+        .btn-salvar:hover { opacity: 0.85; }
+        .btn-salvar:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .signature-canvas, .photo-canvas, .video-preview {
+            border: 1px dashed var(--cor-borda);
+            border-radius: 0.375rem;
+            background-color: #5a616c;
         }
+        .hidden { display: none; }
         .btn-limpar {
             color: var(--cor-texto-medio);
             font-size: 0.875rem;
             text-decoration: underline;
             cursor: pointer;
         }
-        .signature-canvas, .photo-canvas, .video-preview {
-            border: 1px dashed var(--cor-borda);
-            border-radius: 0.375rem;
-            background-color: #5a616c;
-        }
-        /* Ocultar elementos */
-        .hidden {
-            display: none;
-        }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
     <nav class="w-full bg-transparent p-4 md:p-6">
-        <div class="container mx-auto flex justify-between items-center max-w-6xl">
-            <img src="/logo.jpg" alt="Araguaia Imóveis" class="h-10 md:h-12">
-            <span class="text-sm md:text-md" style="color: var(--cor-botao-verde);">
+        <div class="container mx-auto flex justify-center items-center max-w-6xl">
+            <span class="text-lg md:text-xl font-bold tracking-widest" style="color: var(--cor-botao-verde);">
                 INVISTA EM SEUS SONHOS
             </span>
         </div>
@@ -277,18 +248,18 @@ HTML_TEMPLATE = """
 
                     <div class="space-y-4">
                         <div>
-                            <span class="block text-sm font-medium mb-2">Já esteve em um dos plantões de atendimento da Araguaia Imóveis?*</span>
+                            <span class="block text-sm font-medium mb-2">Já esteve em um dos plantões?*</span>
                             <div class="flex gap-4">
-                                <label><input type="radio" name="esteve_plantao" value="sim" required> <span class="form-radio-label">Sim</span></label>
-                                <label><input type="radio" name="esteve_plantao" value="nao"> <span class="form-radio-label">Não</span></label>
+                                <label><input type="radio" name="esteve_plantao" value="sim" required> <span class="ml-2">Sim</span></label>
+                                <label><input type="radio" name="esteve_plantao" value="nao"> <span class="ml-2">Não</span></label>
                             </div>
                         </div>
 
                         <div>
-                            <span class="block text-sm font-medium mb-2">Já foi atendido por algum corretor?*</span>
+                            <span class="block text-sm font-medium mb-2">Já foi atendido por corretor?*</span>
                             <div class="flex gap-4">
-                                <label><input type="radio" name="foi_atendido" value="sim" id="atendido_sim" required> <span class="form-radio-label">Sim</span></label>
-                                <label><input type="radio" name="foi_atendido" value="nao" id="atendido_nao"> <span class="form-radio-label">Não</span></label>
+                                <label><input type="radio" name="foi_atendido" value="sim" id="atendido_sim" required> <span class="ml-2">Sim</span></label>
+                                <label><input type="radio" name="foi_atendido" value="nao" id="atendido_nao"> <span class="ml-2">Não</span></label>
                             </div>
                         </div>
                         
@@ -298,10 +269,10 @@ HTML_TEMPLATE = """
                         </div>
 
                         <div>
-                            <span class="block text-sm font-medium mb-2">Autoriza a empresa Araguaia Imóveis te inserir na lista de transmissões de lançamentos?*</span>
+                            <span class="block text-sm font-medium mb-2">Autoriza lista de transmissão?*</span>
                             <div class="flex gap-4">
-                                <label><input type="radio" name="autoriza_transmissao" value="sim" required> <span class="form-radio-label">Sim</span></label>
-                                <label><input type="radio" name="autoriza_transmissao" value="nao"> <span class="form-radio-label">Não</span></label>
+                                <label><input type="radio" name="autoriza_transmissao" value="sim" required> <span class="ml-2">Sim</span></label>
+                                <label><input type="radio" name="autoriza_transmissao" value="nao"> <span class="ml-2">Não</span></label>
                             </div>
                         </div>
                     </div>
@@ -317,35 +288,32 @@ HTML_TEMPLATE = """
                 </div>
 
                 <div class="md:col-span-2 flex flex-col md:flex-row justify-between items-center gap-4">
-                    <span class="text-sm text-gray-300" id="dataAtual">Sorriso/MT, 10/11/2025</span>
+                    <span class="text-sm text-gray-300" id="dataAtual">Sorriso/MT</span>
                     <button type="submit" id="saveButton" class="btn-salvar w-full md:w-auto">Salvar Ficha</button>
                 </div>
 
                 <div id="statusMessage" class="md:col-span-2 text-center p-2 rounded hidden"></div>
-                
             </form>
         </div>
     </main>
 
-    <footer class="w-full p-4 mt-8">
-        <div class="text-center text-xs text-gray-400">
-            © <span id="currentYear">2025</span> Araguaia Imóveis. Todos os direitos reservados.
-        </div>
+    <footer class="w-full p-4 mt-8 text-center text-xs text-gray-400">
+        © <span id="currentYear"></span> Araguaia Imóveis.
     </footer>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             
-            const form = document.getElementById('preAtendimentoForm');
-            const statusMessage = document.getElementById('statusMessage');
-
-            // --- DATA ATUAL ---
+            // Atualiza data
             const today = new Date();
-            const dataFormatada = today.toLocaleDateString('pt-BR');
-            document.getElementById('dataAtual').innerText = `Sorriso/MT, ${dataFormatada}`;
+            document.getElementById('dataAtual').innerText = `Sorriso/MT, ${today.toLocaleDateString('pt-BR')}`;
             document.getElementById('currentYear').innerText = today.getFullYear();
 
-            // --- CÂMERA (FOTO DO CLIENTE) ---
+            // Elementos
+            const form = document.getElementById('preAtendimentoForm');
+            const statusMessage = document.getElementById('statusMessage');
+            
+            // Câmera
             const video = document.getElementById('videoPreview');
             const photoCanvas = document.getElementById('photoCanvas');
             const photoCtx = photoCanvas.getContext('2d');
@@ -355,22 +323,15 @@ HTML_TEMPLATE = """
             const fotoHiddenInput = document.getElementById('foto_cliente_base64');
             let stream = null;
 
-            function drawAvatarPlaceholder() {
+            function drawPlaceholder() {
                 photoCtx.fillStyle = '#b0b0b0';
                 photoCtx.fillRect(0, 0, photoCanvas.width, photoCanvas.height);
-                photoCtx.beginPath();
-                photoCtx.arc(photoCanvas.width / 2, photoCanvas.height / 2.5, 20, 0, Math.PI * 2, true);
-                photoCtx.fillStyle = '#e0e0e0';
-                photoCtx.fill();
-                photoCtx.beginPath();
-                photoCtx.arc(photoCanvas.width / 2, photoCanvas.height + 30, 45, 0, Math.PI, false);
-                photoCtx.fill();
             }
-            drawAvatarPlaceholder();
+            drawPlaceholder();
 
             startWebcamBtn.addEventListener('click', async () => {
                 try {
-                    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true });
                     video.srcObject = stream;
                     video.classList.remove('hidden');
                     photoCanvas.classList.add('hidden');
@@ -378,205 +339,156 @@ HTML_TEMPLATE = """
                     clearPhotoBtn.classList.remove('hidden');
                     startWebcamBtn.classList.add('hidden');
                 } catch (err) {
-                    console.error("Erro ao acessar a câmera: ", err);
-                    alert("Não foi possível acessar a câmera. Verifique as permissões.");
+                    alert("Erro ao acessar câmera (Permissão negada ou HTTPS ausente).");
                 }
             });
 
             takePhotoBtn.addEventListener('click', () => {
                 photoCanvas.width = video.videoWidth;
                 photoCanvas.height = video.videoHeight;
-                photoCtx.drawImage(video, 0, 0, photoCanvas.width, photoCanvas.height);
+                photoCtx.drawImage(video, 0, 0);
                 fotoHiddenInput.value = photoCanvas.toDataURL('image/jpeg', 0.8);
                 video.classList.add('hidden');
                 photoCanvas.classList.remove('hidden');
                 takePhotoBtn.classList.add('hidden');
-                if (stream) {
-                    stream.getTracks().forEach(track => track.stop());
-                    stream = null;
-                }
+                if(stream) stream.getTracks().forEach(t => t.stop());
             });
 
             clearPhotoBtn.addEventListener('click', () => {
-                photoCtx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
-                drawAvatarPlaceholder();
+                drawPlaceholder();
                 fotoHiddenInput.value = '';
                 video.classList.add('hidden');
                 photoCanvas.classList.remove('hidden');
                 startWebcamBtn.classList.remove('hidden');
                 takePhotoBtn.classList.add('hidden');
                 clearPhotoBtn.classList.add('hidden');
-                if (stream) {
-                    stream.getTracks().forEach(track => track.stop());
-                    stream = null;
-                }
+                if(stream) stream.getTracks().forEach(t => t.stop());
             });
 
-            // --- CAMPO CONDICIONAL (NOME CORRETOR) ---
+            // Campo Corretor Condicional
             const atendidoSim = document.getElementById('atendido_sim');
             const atendidoNao = document.getElementById('atendido_nao');
-            const campoNomeCorretor = document.getElementById('campoNomeCorretor');
-            const nomeCorretorInput = document.getElementById('nome_corretor');
-
-            function toggleNomeCorretor() {
-                if (atendidoSim.checked) {
-                    campoNomeCorretor.classList.remove('hidden');
-                    nomeCorretorInput.required = true;
+            const campoNome = document.getElementById('campoNomeCorretor');
+            
+            function toggleCorretor() {
+                if(atendidoSim.checked) {
+                    campoNome.classList.remove('hidden');
+                    document.getElementById('nome_corretor').required = true;
                 } else {
-                    campoNomeCorretor.classList.add('hidden');
-                    nomeCorretorInput.required = false;
-                    nomeCorretorInput.value = ''; // Limpa o valor se 'Não' for marcado
+                    campoNome.classList.add('hidden');
+                    document.getElementById('nome_corretor').required = false;
                 }
             }
-            atendidoSim.addEventListener('change', toggleNomeCorretor);
-            atendidoNao.addEventListener('change', toggleNomeCorretor);
+            atendidoSim.addEventListener('change', toggleCorretor);
+            atendidoNao.addEventListener('change', toggleCorretor);
 
-            // --- ASSINATURA CANVAS ---
+            // Assinatura
             const sigCanvas = document.getElementById('signatureCanvas');
             const sigCtx = sigCanvas.getContext('2d');
-            const clearSignatureBtn = document.getElementById('clearSignature');
-            const assinaturaHiddenInput = document.getElementById('assinatura_base64');
             let drawing = false;
-            let dirty = false;
 
             function resizeCanvas() {
                 const rect = sigCanvas.getBoundingClientRect();
                 sigCanvas.width = rect.width;
                 sigCanvas.height = rect.height;
+                sigCtx.strokeStyle = "#FFFFFF";
+                sigCtx.lineWidth = 2;
             }
             window.addEventListener('resize', resizeCanvas);
-            resizeCanvas();
+            resizeCanvas(); 
 
-            sigCtx.strokeStyle = "#FFFFFF";
-            sigCtx.lineWidth = 2;
-
-            function getMousePos(canvas, evt) {
-                const rect = canvas.getBoundingClientRect();
-                return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-            }
-            
-            function getTouchPos(canvas, evt) {
-                const rect = canvas.getBoundingClientRect();
-                return { x: evt.touches[0].clientX - rect.left, y: evt.touches[0].clientY - rect.top };
+            function getPos(e) {
+                const rect = sigCanvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return { x: clientX - rect.left, y: clientY - rect.top };
             }
 
-            function startDrawing(e) {
+            function startDraw(e) {
                 drawing = true;
-                dirty = true;
-                const pos = e.touches ? getTouchPos(sigCanvas, e) : getMousePos(sigCanvas, e);
+                const pos = getPos(e);
                 sigCtx.beginPath();
                 sigCtx.moveTo(pos.x, pos.y);
                 e.preventDefault();
             }
 
-            function draw(e) {
-                if (!drawing) return;
-                const pos = e.touches ? getTouchPos(sigCanvas, e) : getMousePos(sigCanvas, e);
+            function moveDraw(e) {
+                if(!drawing) return;
+                const pos = getPos(e);
                 sigCtx.lineTo(pos.x, pos.y);
                 sigCtx.stroke();
                 e.preventDefault();
             }
 
-            function stopDrawing(e) {
-                if (drawing) {
+            function endDraw(e) {
+                if(drawing) {
                     sigCtx.stroke();
                     drawing = false;
-                    assinaturaHiddenInput.value = sigCanvas.toDataURL('image/png');
+                    document.getElementById('assinatura_base64').value = sigCanvas.toDataURL();
                 }
-                e.preventDefault();
             }
 
-            sigCanvas.addEventListener('mousedown', startDrawing);
-            sigCanvas.addEventListener('mousemove', draw);
-            sigCanvas.addEventListener('mouseup', stopDrawing);
-            sigCanvas.addEventListener('mouseout', stopDrawing);
-            sigCanvas.addEventListener('touchstart', startDrawing);
-            sigCanvas.addEventListener('touchmove', draw);
-            sigCanvas.addEventListener('touchend', stopDrawing);
-            sigCanvas.addEventListener('touchcancel', stopDrawing);
+            sigCanvas.addEventListener('mousedown', startDraw);
+            sigCanvas.addEventListener('mousemove', moveDraw);
+            sigCanvas.addEventListener('mouseup', endDraw);
+            sigCanvas.addEventListener('touchstart', startDraw);
+            sigCanvas.addEventListener('touchmove', moveDraw);
+            sigCanvas.addEventListener('touchend', endDraw);
 
-            clearSignatureBtn.addEventListener('click', () => {
+            document.getElementById('clearSignature').addEventListener('click', () => {
                 sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
-                assinaturaHiddenInput.value = '';
-                dirty = false;
+                document.getElementById('assinatura_base64').value = '';
             });
 
-            // --- ENVIO DO FORMULÁRIO (SUBMIT) ---
+            // Envio do Formulário
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const saveButton = document.getElementById('saveButton');
-                saveButton.disabled = true;
-                saveButton.innerText = 'Salvando...';
+                const btn = document.getElementById('saveButton');
+                btn.disabled = true;
+                btn.innerText = 'Salvando...';
 
-                // Validação de campos obrigatórios
-                const nome = document.getElementById('nome').value;
-                const telefone = document.getElementById('telefone').value;
-                const cidade = document.getElementById('cidade').value;
-                if (!nome || !telefone || !cidade) {
-                    showStatus('Por favor, preencha os campos obrigatórios (Nome, Telefone e Cidade).', 'erro');
-                    saveButton.disabled = false;
-                    saveButton.innerText = 'Salvar Ficha';
-                    return;
-                }
-
-                // Coletar dados do formulário
+                // Captura dados
                 const formData = new FormData(form);
                 const data = {};
-                formData.forEach((value, key) => {
-                    data[key] = value;
-                });
-                
-                data.esteve_plantao = data.esteve_plantao === 'sim' ? 1 : 0;
-                data.foi_atendido = data.foi_atendido === 'sim' ? 1 : 0;
-                data.autoriza_transmissao = data.autoriza_transmissao === 'sim' ? 1 : 0;
+                formData.forEach((val, key) => data[key] = val);
 
+                // Tratamento de Booleans
+                data.esteve_plantao = (data.esteve_plantao === 'sim') ? 1 : 0;
+                data.foi_atendido = (data.foi_atendido === 'sim') ? 1 : 0;
+                data.autoriza_transmissao = (data.autoriza_transmissao === 'sim') ? 1 : 0;
+                
+                // Dados binários
                 data.foto_cliente_base64 = fotoHiddenInput.value;
-                data.assinatura_base64 = assinaturaHiddenInput.value;
+                data.assinatura_base64 = document.getElementById('assinatura_base64').value;
 
                 try {
-                    const response = await fetch('/', {
+                    const resp = await fetch('/', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
+                        headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify(data)
                     });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        showStatus('Ficha salva com sucesso!', 'sucesso');
+                    const res = await resp.json();
+                    
+                    if(res.success) {
+                        statusMessage.innerText = "Salvo com sucesso!";
+                        statusMessage.className = "md:col-span-2 text-center p-2 rounded bg-green-200 text-green-800";
+                        statusMessage.classList.remove('hidden');
                         form.reset();
-                        clearSignatureBtn.click();
-                        clearPhotoBtn.click();
-                        toggleNomeCorretor(); // Resetar campo condicional
+                        sigCtx.clearRect(0,0,sigCanvas.width, sigCanvas.height);
+                        drawPlaceholder();
+                        toggleCorretor();
                     } else {
-                        showStatus(`Erro ao salvar: ${result.message}`, 'erro');
+                        throw new Error(res.message);
                     }
-                } catch (error) {
-                    console.error('Erro no fetch:', error);
-                    showStatus('Erro de conexão. Tente novamente.', 'erro');
+                } catch (err) {
+                    statusMessage.innerText = "Erro: " + err.message;
+                    statusMessage.className = "md:col-span-2 text-center p-2 rounded bg-red-200 text-red-800";
+                    statusMessage.classList.remove('hidden');
                 } finally {
-                    saveButton.disabled = false;
-                    saveButton.innerText = 'Salvar Ficha';
+                    btn.disabled = false;
+                    btn.innerText = 'Salvar Ficha';
                 }
             });
-
-            function showStatus(message, type) {
-                statusMessage.innerText = message;
-                statusMessage.classList.remove('hidden');
-                if (type === 'sucesso') {
-                    statusMessage.classList.add('bg-green-200', 'text-green-800');
-                    statusMessage.classList.remove('bg-red-200', 'text-red-800');
-                } else {
-                    statusMessage.classList.add('bg-red-200', 'text-red-800');
-                    statusMessage.classList.remove('bg-green-200', 'text-green-800');
-                }
-
-                setTimeout(() => {
-                    statusMessage.classList.add('hidden');
-                }, 5000);
-            }
         });
     </script>
 </body>
@@ -586,72 +498,52 @@ HTML_TEMPLATE = """
 # --- Funções Auxiliares ---
 
 def formatar_telefone_n8n(telefone_bruto):
-    """
-    Limpa e formata o número de telefone para o padrão E.164 para o n8n.
-    Ex: (66) 99988-7766 -> +5566999887766
-    """
     try:
         numeros = ''.join(filter(str.isdigit, telefone_bruto))
         if 10 <= len(numeros) <= 11:
             return f"+55{numeros}"
-        else:
-            print(f"Número de telefone inválido (comprimento): {telefone_bruto}")
-            return None
-    except Exception as e:
-        print(f"Erro ao formatar telefone {telefone_bruto}: {e}")
+        return None
+    except:
         return None
 
-
-# --- Rotas da Aplicação Flask ---
+# --- ROTAS DA APLICAÇÃO ---
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    """
-    Rota principal:
-    - GET: Exibe o formulário HTML (passando a lista de empreendimentos).
-    - POST: Recebe os dados, salva no BD e envia Webhook para o n8n.
-    """
     if request.method == 'POST':
-        
         if not DATABASE_URL:
-            return jsonify({'success': False, 'message': 'Configuração do banco de dados não encontrada.'}), 500
+            return jsonify({'success': False, 'message': 'Banco de dados não configurado.'}), 500
 
         try:
             data = request.json
             
-            # Dados principais
+            # Campos Obrigatórios
             nome = data.get('nome')
-            telefone_bruto = data.get('telefone')
             cidade = data.get('cidade')
+            telefone_formatado = formatar_telefone_n8n(data.get('telefone'))
             
-            # Campos novos
+            if not telefone_formatado:
+                return jsonify({'success': False, 'message': 'Telefone inválido.'}), 400
+            if not nome or not cidade:
+                return jsonify({'success': False, 'message': 'Nome e Cidade são obrigatórios.'}), 400
+
+            # Campos Extras
             loteamento = data.get('loteamento')
             comprou_1o_lote = data.get('comprou_1o_lote')
             nivel_interesse = data.get('nivel_interesse')
             
-            # Formata o telefone para E.164
-            telefone_formatado = formatar_telefone_n8n(telefone_bruto)
-            
-            # Validações
-            if not telefone_formatado:
-                return jsonify({'success': False, 'message': 'Número de telefone inválido.'}), 400
-            
-            if not nome or not cidade:
-                return jsonify({'success': False, 'message': 'Nome e Cidade são obrigatórios.'}), 400
-
-            # Restante dos dados
+            # Dados Gerais
             rede_social = data.get('rede_social')
             abordagem_inicial = data.get('abordagem_inicial')
             esteve_plantao = data.get('esteve_plantao') == 1
             foi_atendido = data.get('foi_atendido') == 1
-            nome_corretor_raw = data.get('nome_corretor')
-            nome_corretor = nome_corretor_raw if foi_atendido and nome_corretor_raw else None
+            nome_corretor = data.get('nome_corretor') if foi_atendido else None
             autoriza_transmissao = data.get('autoriza_transmissao') == 1
             foto_cliente_base64 = data.get('foto_cliente_base64')
             assinatura_base64 = data.get('assinatura_base64')
             data_hora = datetime.datetime.now(datetime.timezone.utc)
 
-            # 1. Inserir no banco de dados e RETORNAR O ID
+            # 1. Salvar no Banco
             insert_query = '''
                 INSERT INTO atendimentos (
                     data_hora, nome, telefone, rede_social, abordagem_inicial, 
@@ -669,7 +561,6 @@ def index():
             )
             
             ticket_id = None
-
             with psycopg2.connect(DATABASE_URL) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(insert_query, values)
@@ -677,12 +568,12 @@ def index():
                     if result:
                         ticket_id = result[0]
             
-            print(f"Ficha salva no BD. ID: {ticket_id}")
+            logger.info(f"Registro salvo ID: {ticket_id}")
 
-            # 2. Enviar para o n8n (Webhook Trigger)
+            # 2. Enviar Webhook N8N
             if N8N_WEBHOOK_URL:
                 try:
-                    payload_n8n = {
+                    payload = {
                         "ticket_id": ticket_id,
                         "nome": nome,
                         "telefone": telefone_formatado,
@@ -693,40 +584,19 @@ def index():
                         "nome_corretor": nome_corretor,
                         "timestamp": str(data_hora)
                     }
-                    
-                    response_n8n = requests.post(N8N_WEBHOOK_URL, json=payload_n8n, timeout=3)
-                    print(f"Webhook n8n enviado. Status: {response_n8n.status_code}")
-                    
+                    requests.post(N8N_WEBHOOK_URL, json=payload, timeout=3)
                 except Exception as e_n8n:
-                    print(f"AVISO: Erro ao comunicar com n8n: {e_n8n}")
+                    logger.warning(f"Falha webhook n8n: {e_n8n}")
             
             return jsonify({'success': True, 'message': 'Ficha salva com sucesso!'})
 
         except Exception as e:
-            print(f"Erro ao salvar no banco: {e}")
-            return jsonify({'success': False, 'message': f"Erro interno: {str(e)}"}), 500
+            logger.error(f"Erro POST: {e}")
+            return jsonify({'success': False, 'message': str(e)}), 500
 
-    # Método GET: Renderiza o HTML injetando a lista de empreendimentos
+    # GET: Renderiza Template com as opções
     return render_template_string(HTML_TEMPLATE, empreendimentos=OPCOES_EMPREENDIMENTOS)
 
-
-@app.route('/logo.jpg')
-def serve_logo():
-    """
-    Decodifica a string Base64 do logo e serve como imagem JPEG.
-    """
-    try:
-        image_data = base64.b64decode(LOGO_BASE64_STRING)
-        return Response(image_data, mimetype='image/jpeg')
-    except Exception as e:
-        print(f"Erro ao servir logo: {e}")
-        return "Erro no logo", 500
-
-
-# --- Execução da Aplicação ---
 if __name__ == '__main__':
-    print("Iniciando banco de dados...")
-    init_db()
-    print(f"URL do n8n configurada: {N8N_WEBHOOK_URL}")
-    print("Iniciando aplicação Flask...")
+    # init_db já foi chamado no escopo global para garantir a migração no deploy
     app.run(host='0.0.0.0', port=5000, debug=True)
