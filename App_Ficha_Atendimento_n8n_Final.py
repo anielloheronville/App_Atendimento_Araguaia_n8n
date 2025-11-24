@@ -19,12 +19,34 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 
 # --- LISTA DE EMPREENDIMENTOS (Dropdown) ---
 OPCOES_EMPREENDIMENTOS = [
-    "Lançamento - Reserva do Bosque",
-    "Lançamento - Altavista Premium",
-    "Residencial Araguaia (Disponível)",
-    "Jardim dos Ipês (> 10 Lotes)",
-    "Vale do Sol (> 10 Lotes)",
-    "Outros"
+    
+    "Jardim dos Ipês",
+    "Jardim Amazônia ET. 3",
+    "Jardim Amazônia ET. 4",
+    "Jardim Amazônia ET. 5",
+    "Jardim Paulista",
+    "Jardim Mato Grosso",
+    "Jardim Florencia",
+    "Benjamim Rossato",
+    "Santa Felicidade",
+    "Amazon Park",
+    "Santa Fé",
+    "Colina Verde",
+    "Res. Terra de Santa Cruz",
+    "Consorcio Parque Cerrado",
+    "Consorcio Recanto da Mata",
+    "Jardim Vila Rica",
+    "Jardim Amazônia Et. I",
+    "Jardim Amazônia Et. II",
+    "Loteamento Luxemburgo",
+    "Loteamento Jardim Vila Bella"
+    "Morada do Boque III",
+    "Reserva Jardim",
+    "Residencial Cidade Jardim",
+    "Residencial Florais da Mata",
+    "Residencial Jardim Imigrantes",
+    "Residencial Vila Rica",
+    "Residencial Vila Rica SINOP"
 ]
 
 # --- BANCO DE DADOS (COM MIGRAÇÃO AUTOMÁTICA) ---
