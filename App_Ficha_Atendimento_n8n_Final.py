@@ -32,6 +32,26 @@ OPCOES_EMPREENDIMENTOS = [
     "Santa Fé",
     "Colina Verde",
     "Res. Terra de Santa Cruz",
+    "Consórcio Gran Ville",
+    "Consórcio Parque Cerrado",
+    "Consórcio Recanto da Mata",
+    "Jardim Vila Rica",
+    "Jardim Amazônia Et. I",
+    "Jardim Amazônia Et. II",
+    "Residencial Vila Rica Sinop",
+    "Outros" "Jardim dos Ipês",
+    "Jardim Amazônia ET. 3",
+    "Jardim Amazônia ET. 4",
+    "Jardim Amazônia ET. 5",
+    "Jardim Paulista",
+    "Jardim Mato Grosso",
+    "Jardim Florencia",
+    "Benjamim Rossato",
+    "Santa Felicidade",
+    "Amazon Park",
+    "Santa Fé",
+    "Colina Verde",
+    "Res. Terra de Santa Cruz",
     "Consórcio Gran Ville"
     "Consórcio Parque Cerrado",
     "Consórcio Recanto da Mata",
@@ -46,7 +66,8 @@ OPCOES_EMPREENDIMENTOS = [
     "Residencial Florais da Mata",
     "Residencial Jardim Imigrantes",
     "Residencial Vila Rica",
-    "Residencial Vila Rica SINOP"
+    "Residencial Vila Rica SINOP",
+    "Outro / Não Listado"
 ]
 
 # --- LISTA DE CORRETORES (Do Excel) ---
@@ -54,11 +75,31 @@ OPCOES_CORRETORES = [
     "4083 - NEURA.T.PAVAN SINIGAGLIA",
     "2796 - PEDRO LAERTE RABECINI",
     "57 - Santos e Padilha Ltda - ME",
-    "1376 - VALMIR MARIO TOMASI",
+    "1376 - VALMIR MARIO TOMASI - SEGALA EMPREENDIMENTOS IMOBILIARIOS EIRELI",
+    "1768 - SEGALA EMPREENDIMENTOS IMOBILIARIOS EIRELI",
+    "2436 - PAULO EDUARDO GONCALVES DIAS",
+    "2447 - GLAUBER BENEDITO FIGUEIREDO DE PINHO",
+    "4476 - Priscila Canhet da Silveira",
+    "1531 - Walmir de Oliveira Queiroz",
+    "4704 - MAYCON JEAN CAMPOS",
+    "4084 - JAIMIR COMPAGNONI",
+    "4096 - THAYANE APARECIDA BORGES 09648795908",
+    "4160 - SIMONE VALQUIRIA BELLO OLIVEIRA",
+    "4587 - GABRIEL GALVÃO LOURENÃ‡O EMPREENDIMENTOS LTDA",
     "4802 - CESAR AUGUSTO PORTELA DA FONSECA JUNIOR LTDA",
     "4868 - LENE ENGLER DA SILVA",
+    "4087 - JOHNNY MIRANDA OJEDA 47447583120",
+    "4531 - MG EMPREENDIMENTOS LTDA (MAIKON WILLIAN CHUSTA)",
+    "4587 - GABRIEL GALVAO LOURENÃ‡O EMPREENDIMENTOS LTDA",
+    "4826 - JEVIELI BELLO OLIVEIRA",
+    "4825 - EVA VITORIA GALVAO LOURENCO",
+    "54 - Ronaldo Padilha dos Santos",
+    "1137 - Moacir Blemer Olivoto",
     "4872 - WQ CORRETORES LTDA (WALMIR QUEIROZ)",
-    "4084 - JAIMIR COMPAGNONI",
+    "720 - Luciane Bocchi ME",
+    "5154 - FELIPE JOSE MOREIRA ALMEIDA",
+    "3063 - SILVANA SEGALA",
+    "2377 - Paulo Eduardo GonÃ§alves Dias",
     "Outro / Não Listado"
 ]
 
@@ -687,3 +728,4 @@ def index():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
