@@ -33,8 +33,9 @@ OPCOES_EMPREENDIMENTOS = [
     "Santa Fé",
     "Colina Verde",
     "Res. Terra de Santa Cruz",
-    "Consorcio Parque Cerrado",
-    "Consorcio Recanto da Mata",
+    "Consórcio Gran Ville",
+    "Consórcio Parque Cerrado",
+    "Consórcio Recanto da Mata",
     "Jardim Vila Rica",
     "Jardim Amazônia Et. I",
     "Jardim Amazônia Et. II",
@@ -706,3 +707,4 @@ def index():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
