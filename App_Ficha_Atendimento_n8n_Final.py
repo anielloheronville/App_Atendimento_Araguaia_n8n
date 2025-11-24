@@ -31,7 +31,6 @@ OPCOES_EMPREENDIMENTOS = [
 def init_db():
     """
     Verifica a tabela e cria as colunas novas se elas não existirem.
-    Isso corrige o erro 'column does not exist'.
     """
     if not DATABASE_URL:
         logger.warning("⚠️ AVISO: DATABASE_URL não encontrada. O app não salvará dados.")
@@ -57,7 +56,7 @@ def init_db():
     )
     '''
 
-    # 2. Queries de Migração (Adicionar colunas novas)
+    # 2. Queries de Migração (Adicionar colunas novas se faltarem)
     migrations = [
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS comprou_1o_lote TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nivel_interesse TEXT;"
@@ -71,13 +70,12 @@ def init_db():
         # Cria a tabela se não existir
         cursor.execute(create_table_query)
         
-        # Tenta aplicar as migrações (ignora erro se já existirem)
+        # Tenta aplicar as migrações
         for migration in migrations:
             try:
                 cursor.execute(migration)
-                logger.info(f"Migração aplicada: {migration}")
             except Exception as e_mig:
-                logger.info(f"Nota de migração (coluna provavelmnete já existe): {e_mig}")
+                pass # Coluna provavelmente já existe
 
         cursor.close()
         conn.close()
@@ -89,120 +87,151 @@ def init_db():
 # --- INICIALIZA O BANCO AO RODAR O SCRIPT ---
 init_db()
 
-# --- TEMPLATE HTML (SEM LOGO) ---
+# --- TEMPLATE HTML (DESIGN ARAGUAIA IMÓVEIS) ---
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ficha de Pré Atendimento - Araguaia Imóveis</title>
+    <title>Araguaia Imóveis - Ficha Digital</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+    
     <style>
+        /* CORES PERSONALIZADAS BASEADAS NO LOGO */
         :root {
-            --cor-bg-fundo: #2d333b;
-            --cor-bg-form: #3a414c;
-            --cor-bg-titulo: #4f463c;
-            --cor-botao-verde: #84cc16;
-            --cor-texto-claro: #e0e0e0;
-            --cor-texto-medio: #b0b0b0;
-            --cor-borda: #5a616c;
+            /* Verde Musgo Profundo (Fundo do Logo) */
+            --cor-bg-fundo: #263318; 
+            /* Verde um pouco mais claro para o formulário */
+            --cor-bg-form: #324221;
+            /* Verde Lima Vibrante (O traço do logo) */
+            --cor-acento: #8cc63f; 
+            
+            --cor-texto-claro: #ffffff;
+            --cor-texto-cinza: #d1d5db;
+            --cor-borda: #4a5e35;
         }
+
         body {
             background-color: var(--cor-bg-fundo);
             color: var(--cor-texto-claro);
-            font-family: 'Inter', sans-serif;
+            font-family: 'Montserrat', sans-serif;
         }
+
+        /* Container do Formulário */
         .form-container {
             background-color: var(--cor-bg-form);
-            border-radius: 0.5rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--cor-borda);
         }
-        .form-title {
-            background-color: var(--cor-bg-titulo);
-            border-top-left-radius: 0.5rem;
-            border-top-right-radius: 0.5rem;
+
+        /* Título Estilizado */
+        .logo-text {
+            font-weight: 800; /* Extra Bold */
+            letter-spacing: -0.05em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
+        
+        .logo-line {
+            height: 4px;
+            background-color: var(--cor-acento);
+            width: 100px;
+            margin: 0.5rem auto;
+            border-radius: 2px;
+        }
+
+        /* Campos de Entrada */
         .form-input, .form-textarea, .form-select {
-            background-color: #5a616c;
+            background-color: #263318; /* Mesma cor do fundo da página */
             border: 1px solid var(--cor-borda);
             color: var(--cor-texto-claro);
-            border-radius: 0.375rem;
+            border-radius: 0.5rem;
             padding: 0.75rem;
             width: 100%;
+            transition: all 0.3s;
         }
-        .form-input::placeholder, .form-textarea::placeholder {
-            color: var(--cor-texto-medio);
+        
+        .form-input:focus, .form-textarea:focus, .form-select:focus {
+            border-color: var(--cor-acento);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(140, 198, 63, 0.2);
         }
+
+        /* Botão Salvar */
         .btn-salvar {
-            background-color: var(--cor-botao-verde);
-            color: #2d333b;
-            font-weight: bold;
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.375rem;
+            background-color: var(--cor-acento);
+            color: #1a2610; /* Texto escuro para contraste no verde lima */
+            font-weight: 800;
+            padding: 0.85rem 2rem;
+            border-radius: 0.5rem;
             transition: all 0.2s;
             cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
-        .btn-salvar:hover { opacity: 0.85; }
-        .btn-salvar:disabled { opacity: 0.5; cursor: not-allowed; }
-        
+        .btn-salvar:hover { 
+            background-color: #7ab82e; 
+            transform: translateY(-1px);
+        }
+        .btn-salvar:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* Canvas e Video */
         .signature-canvas, .photo-canvas, .video-preview {
-            border: 1px dashed var(--cor-borda);
-            border-radius: 0.375rem;
-            background-color: #5a616c;
+            border: 2px dashed var(--cor-borda);
+            border-radius: 0.5rem;
+            background-color: rgba(0,0,0,0.2);
         }
-        .hidden { display: none; }
-        .btn-limpar {
-            color: var(--cor-texto-medio);
-            font-size: 0.875rem;
+
+        .btn-acao-secundaria {
+            color: var(--cor-texto-cinza);
+            font-size: 0.85rem;
             text-decoration: underline;
             cursor: pointer;
         }
+        .btn-acao-secundaria:hover { color: var(--cor-acento); }
+
+        .hidden { display: none; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
-    <nav class="w-full bg-transparent p-4 md:p-6">
-        <div class="container mx-auto flex justify-center items-center max-w-6xl">
-            <span class="text-lg md:text-xl font-bold tracking-widest" style="color: var(--cor-botao-verde);">
-                INVISTA EM SEUS SONHOS
-            </span>
-        </div>
-    </nav>
+    
+    <header class="w-full p-6 text-center">
+        <h1 class="text-4xl md:text-5xl logo-text text-white">Araguaia</h1>
+        <h2 class="text-xl md:text-2xl font-semibold text-white mt-1">Imóveis</h2>
+        <div class="logo-line"></div>
+        <p class="text-xs md:text-sm italic mt-2 tracking-wider" style="color: var(--cor-texto-cinza);">
+            INVISTA EM SEUS SONHOS
+        </p>
+    </header>
 
     <main class="flex-grow flex items-center justify-center p-4">
-        <div class="form-container w-full max-w-4xl mx-auto">
-            <div class="form-title p-4 text-center">
-                <h2 class="text-xl font-semibold text-white">FICHA DE PRÉ ATENDIMENTO</h2>
-            </div>
-
-            <form id="preAtendimentoForm" class="p-6 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+        <div class="form-container w-full max-w-4xl mx-auto p-6 md:p-10">
+            
+            <form id="preAtendimentoForm" class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                 
                 <div class="flex flex-col gap-5">
                     <div>
-                        <label for="nome" class="block text-sm font-medium mb-2">Nome*</label>
-                        <input type="text" id="nome" name="nome" class="form-input" required>
+                        <label for="nome" class="block text-sm font-semibold mb-2 text-white">Nome do Cliente*</label>
+                        <input type="text" id="nome" name="nome" class="form-input" placeholder="Nome Completo" required>
                     </div>
                     <div>
-                        <label for="telefone" class="block text-sm font-medium mb-2">Telefone*</label>
+                        <label for="telefone" class="block text-sm font-semibold mb-2 text-white">Telefone / WhatsApp*</label>
                         <input type="tel" id="telefone" name="telefone" class="form-input" placeholder="(XX) XXXXX-XXXX" required>
                     </div>
                     <div>
-                        <label for="rede_social" class="block text-sm font-medium mb-2">Rede Social</label>
-                        <input type="text" id="rede_social" name="rede_social" class="form-input">
+                        <label for="rede_social" class="block text-sm font-semibold mb-2 text-gray-300">Instagram / Facebook</label>
+                        <input type="text" id="rede_social" name="rede_social" class="form-input" placeholder="@usuario">
                     </div>
                     
                     <div>
-                        <label for="abordagem_inicial" class="block text-sm font-medium mb-2">Abordagem Inicial</label>
-                        <textarea id="abordagem_inicial" name="abordagem_inicial" rows="3" class="form-textarea"></textarea>
-                    </div>
-                    
-                    <div>
-                        <label for="cidade" class="block text-sm font-medium mb-2">Cidade do Atendimento*</label>
+                        <label for="cidade" class="block text-sm font-semibold mb-2 text-white">Cidade do Atendimento*</label>
                         <input type="text" id="cidade" name="cidade" class="form-input" required>
                     </div>
                     
                     <div>
-                        <label for="loteamento" class="block text-sm font-medium mb-2">Loteamento / Empreendimento</label>
+                        <label for="loteamento" class="block text-sm font-semibold mb-2 text-white">Loteamento / Empreendimento</label>
                         <select id="loteamento" name="loteamento" class="form-select">
                             <option value="" disabled selected>Selecione uma opção...</option>
                             {% for opcao in empreendimentos %}
@@ -210,9 +239,9 @@ HTML_TEMPLATE = """
                             {% endfor %}
                         </select>
                     </div>
-
+                    
                     <div>
-                        <label for="comprou_1o_lote" class="block text-sm font-medium mb-2">Realizou o sonho da compra do 1º Lote?</label>
+                        <label for="comprou_1o_lote" class="block text-sm font-semibold mb-2 text-white">Realizou o sonho da compra do 1º Lote?</label>
                         <select id="comprou_1o_lote" name="comprou_1o_lote" class="form-select" required>
                             <option value="" disabled selected>Selecione...</option>
                             <option value="Sim">Sim</option>
@@ -221,7 +250,7 @@ HTML_TEMPLATE = """
                     </div>
 
                     <div>
-                        <label for="nivel_interesse" class="block text-sm font-medium mb-2">Nível de Interesse</label>
+                        <label for="nivel_interesse" class="block text-sm font-semibold mb-2 text-white">Nível de Interesse</label>
                         <select id="nivel_interesse" name="nivel_interesse" class="form-select">
                             <option value="Alto">Alto</option>
                             <option value="Médio">Médio</option>
@@ -231,16 +260,19 @@ HTML_TEMPLATE = """
                 </div>
 
                 <div class="flex flex-col gap-5">
-                    <div>
-                        <label class="block text-sm font-medium mb-2">Foto do Cliente</label>
-                        <div class="flex items-center gap-4">
-                            <canvas id="photoCanvas" class="photo-canvas w-24 h-24 rounded-full"></canvas>
-                            <video id="videoPreview" class="video-preview w-24 h-24 rounded-full hidden" autoplay playsinline></video>
+                    
+                    <div class="p-4 rounded-lg bg-black/20 border border-white/10">
+                        <label class="block text-sm font-semibold mb-3 text-white">Foto do Cliente</label>
+                        <div class="flex flex-col items-center gap-3">
+                            <div class="relative">
+                                <canvas id="photoCanvas" class="photo-canvas w-32 h-32 rounded-full object-cover"></canvas>
+                                <video id="videoPreview" class="video-preview w-32 h-32 rounded-full object-cover hidden" autoplay playsinline></video>
+                            </div>
                             
-                            <div class="flex flex-col gap-2">
-                                <button type="button" id="startWebcam" class="text-sm text-white bg-blue-600 px-3 py-1 rounded hover:bg-blue-700">Abrir Câmera</button>
-                                <button type="button" id="takePhoto" class="text-sm text-white bg-green-600 px-3 py-1 rounded hover:bg-green-700 hidden">Tirar Foto</button>
-                                <button type="button" id="clearPhoto" class="text-sm text-gray-300 underline hidden">Limpar Foto</button>
+                            <div class="flex gap-2">
+                                <button type="button" id="startWebcam" class="text-xs bg-gray-700 text-white px-3 py-2 rounded hover:bg-gray-600 font-semibold uppercase">📷 Abrir Câmera</button>
+                                <button type="button" id="takePhoto" class="text-xs bg-green-600 text-white px-3 py-2 rounded hover:bg-green-500 hidden font-semibold uppercase">📸 Capturar</button>
+                                <button type="button" id="clearPhoto" class="text-xs text-red-400 underline hidden">Remover</button>
                             </div>
                         </div>
                         <input type="hidden" id="foto_cliente_base64" name="foto_cliente_base64">
@@ -248,72 +280,98 @@ HTML_TEMPLATE = """
 
                     <div class="space-y-4">
                         <div>
-                            <span class="block text-sm font-medium mb-2">Já esteve em um dos plantões?*</span>
+                            <span class="block text-sm font-semibold mb-2 text-white">Já esteve em um plantão da Araguaia?*</span>
                             <div class="flex gap-4">
-                                <label><input type="radio" name="esteve_plantao" value="sim" required> <span class="ml-2">Sim</span></label>
-                                <label><input type="radio" name="esteve_plantao" value="nao"> <span class="ml-2">Não</span></label>
+                                <label class="flex items-center cursor-pointer"><input type="radio" name="esteve_plantao" value="sim" class="accent-[#8cc63f]" required> <span class="ml-2">Sim</span></label>
+                                <label class="flex items-center cursor-pointer"><input type="radio" name="esteve_plantao" value="nao" class="accent-[#8cc63f]"> <span class="ml-2">Não</span></label>
                             </div>
                         </div>
 
                         <div>
-                            <span class="block text-sm font-medium mb-2">Já foi atendido por corretor?*</span>
+                            <span class="block text-sm font-semibold mb-2 text-white">Já possui corretor na Araguaia?*</span>
                             <div class="flex gap-4">
-                                <label><input type="radio" name="foi_atendido" value="sim" id="atendido_sim" required> <span class="ml-2">Sim</span></label>
-                                <label><input type="radio" name="foi_atendido" value="nao" id="atendido_nao"> <span class="ml-2">Não</span></label>
+                                <label class="flex items-center cursor-pointer"><input type="radio" name="foi_atendido" value="sim" id="atendido_sim" class="accent-[#8cc63f]" required> <span class="ml-2">Sim</span></label>
+                                <label class="flex items-center cursor-pointer"><input type="radio" name="foi_atendido" value="nao" id="atendido_nao" class="accent-[#8cc63f]"> <span class="ml-2">Não</span></label>
                             </div>
                         </div>
                         
-                        <div id="campoNomeCorretor" class="hidden">
-                            <label for="nome_corretor" class="block text-sm font-medium mb-2">Se sim, qual o nome:</label>
-                            <input type="text" id="nome_corretor" name="nome_corretor" class="form-input">
+                        <div id="campoNomeCorretor" class="hidden animate-fade-in p-3 bg-[#8cc63f]/10 border border-[#8cc63f] rounded-md">
+                            <label for="nome_corretor" class="block text-sm font-bold mb-1 text-[#8cc63f]">Nome do Corretor:</label>
+                            <input type="text" id="nome_corretor" name="nome_corretor" class="form-input font-semibold" placeholder="Digite o nome do corretor">
                         </div>
 
                         <div>
-                            <span class="block text-sm font-medium mb-2">Autoriza lista de transmissão?*</span>
+                            <span class="block text-sm font-semibold mb-2 text-white">Autoriza lista de transmissão?*</span>
                             <div class="flex gap-4">
-                                <label><input type="radio" name="autoriza_transmissao" value="sim" required> <span class="ml-2">Sim</span></label>
-                                <label><input type="radio" name="autoriza_transmissao" value="nao"> <span class="ml-2">Não</span></label>
+                                <label class="flex items-center cursor-pointer"><input type="radio" name="autoriza_transmissao" value="sim" class="accent-[#8cc63f]" required> <span class="ml-2">Sim</span></label>
+                                <label class="flex items-center cursor-pointer"><input type="radio" name="autoriza_transmissao" value="nao" class="accent-[#8cc63f]"> <span class="ml-2">Não</span></label>
                             </div>
                         </div>
                     </div>
                 </div>
+                
+                <div class="md:col-span-2">
+                    <label for="abordagem_inicial" class="block text-sm font-semibold mb-2 text-white">Observações / Abordagem Inicial</label>
+                    <textarea id="abordagem_inicial" name="abordagem_inicial" rows="3" class="form-textarea" placeholder="Detalhes importantes sobre o atendimento..."></textarea>
+                </div>
 
                 <div class="md:col-span-2">
-                    <label class="block text-sm font-medium mb-2">Assinatura do cliente</label>
-                    <canvas id="signatureCanvas" class="signature-canvas w-full h-40"></canvas>
+                    <label class="block text-sm font-semibold mb-2 text-white">Assinatura do Cliente</label>
+                    <canvas id="signatureCanvas" class="signature-canvas w-full h-32 cursor-crosshair"></canvas>
                     <input type="hidden" id="assinatura_base64" name="assinatura_base64">
-                    <div class="flex justify-between items-center mt-2">
-                        <button type="button" id="clearSignature" class="btn-limpar">Limpar Assinatura</button>
+                    <div class="flex justify-end mt-1">
+                        <button type="button" id="clearSignature" class="btn-acao-secundaria">Limpar Assinatura</button>
                     </div>
                 </div>
 
-                <div class="md:col-span-2 flex flex-col md:flex-row justify-between items-center gap-4">
-                    <span class="text-sm text-gray-300" id="dataAtual">Sorriso/MT</span>
-                    <button type="submit" id="saveButton" class="btn-salvar w-full md:w-auto">Salvar Ficha</button>
+                <div class="md:col-span-2 flex flex-col md:flex-row justify-between items-center gap-6 mt-4">
+                    <span class="text-sm font-medium" style="color: var(--cor-texto-cinza);" id="dataAtual">Sorriso/MT</span>
+                    <button type="submit" id="saveButton" class="btn-salvar w-full md:w-auto shadow-lg hover:shadow-xl">
+                        Salvar Ficha
+                    </button>
                 </div>
 
-                <div id="statusMessage" class="md:col-span-2 text-center p-2 rounded hidden"></div>
+                <div id="statusMessage" class="md:col-span-2 text-center p-3 rounded font-bold hidden"></div>
             </form>
         </div>
     </main>
 
-    <footer class="w-full p-4 mt-8 text-center text-xs text-gray-400">
-        © <span id="currentYear"></span> Araguaia Imóveis.
+    <footer class="w-full p-6 text-center text-xs opacity-50">
+        © <span id="currentYear"></span> Araguaia Imóveis. Todos os direitos reservados.
     </footer>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             
-            // Atualiza data
+            // --- INICIALIZAÇÃO ---
             const today = new Date();
             document.getElementById('dataAtual').innerText = `Sorriso/MT, ${today.toLocaleDateString('pt-BR')}`;
             document.getElementById('currentYear').innerText = today.getFullYear();
-
-            // Elementos
             const form = document.getElementById('preAtendimentoForm');
             const statusMessage = document.getElementById('statusMessage');
+
+            // --- LÓGICA DO CAMPO CORRETOR ---
+            const atendidoSim = document.getElementById('atendido_sim');
+            const atendidoNao = document.getElementById('atendido_nao');
+            const campoNome = document.getElementById('campoNomeCorretor');
+            const inputNomeCorretor = document.getElementById('nome_corretor');
             
-            // Câmera
+            function toggleCorretor() {
+                if(atendidoSim.checked) {
+                    campoNome.classList.remove('hidden');
+                    inputNomeCorretor.required = true;
+                    // Foca no campo automaticamente para agilizar
+                    setTimeout(() => inputNomeCorretor.focus(), 100);
+                } else {
+                    campoNome.classList.add('hidden');
+                    inputNomeCorretor.required = false;
+                    inputNomeCorretor.value = '';
+                }
+            }
+            atendidoSim.addEventListener('change', toggleCorretor);
+            atendidoNao.addEventListener('change', toggleCorretor);
+
+            // --- CÂMERA ---
             const video = document.getElementById('videoPreview');
             const photoCanvas = document.getElementById('photoCanvas');
             const photoCtx = photoCanvas.getContext('2d');
@@ -324,8 +382,16 @@ HTML_TEMPLATE = """
             let stream = null;
 
             function drawPlaceholder() {
-                photoCtx.fillStyle = '#b0b0b0';
+                // Desenha um ícone de usuário genérico
+                photoCtx.fillStyle = '#324221';
                 photoCtx.fillRect(0, 0, photoCanvas.width, photoCanvas.height);
+                photoCtx.fillStyle = '#8cc63f';
+                photoCtx.beginPath();
+                photoCtx.arc(photoCanvas.width/2, photoCanvas.height/2 - 10, 20, 0, Math.PI*2);
+                photoCtx.fill();
+                photoCtx.beginPath();
+                photoCtx.arc(photoCanvas.width/2, photoCanvas.height + 10, 40, 0, Math.PI*2);
+                photoCtx.fill();
             }
             drawPlaceholder();
 
@@ -339,7 +405,7 @@ HTML_TEMPLATE = """
                     clearPhotoBtn.classList.remove('hidden');
                     startWebcamBtn.classList.add('hidden');
                 } catch (err) {
-                    alert("Erro ao acessar câmera (Permissão negada ou HTTPS ausente).");
+                    alert("Erro ao acessar câmera. Verifique se o site tem permissão HTTPS.");
                 }
             });
 
@@ -365,24 +431,7 @@ HTML_TEMPLATE = """
                 if(stream) stream.getTracks().forEach(t => t.stop());
             });
 
-            // Campo Corretor Condicional
-            const atendidoSim = document.getElementById('atendido_sim');
-            const atendidoNao = document.getElementById('atendido_nao');
-            const campoNome = document.getElementById('campoNomeCorretor');
-            
-            function toggleCorretor() {
-                if(atendidoSim.checked) {
-                    campoNome.classList.remove('hidden');
-                    document.getElementById('nome_corretor').required = true;
-                } else {
-                    campoNome.classList.add('hidden');
-                    document.getElementById('nome_corretor').required = false;
-                }
-            }
-            atendidoSim.addEventListener('change', toggleCorretor);
-            atendidoNao.addEventListener('change', toggleCorretor);
-
-            // Assinatura
+            // --- ASSINATURA ---
             const sigCanvas = document.getElementById('signatureCanvas');
             const sigCtx = sigCanvas.getContext('2d');
             let drawing = false;
@@ -391,7 +440,7 @@ HTML_TEMPLATE = """
                 const rect = sigCanvas.getBoundingClientRect();
                 sigCanvas.width = rect.width;
                 sigCanvas.height = rect.height;
-                sigCtx.strokeStyle = "#FFFFFF";
+                sigCtx.strokeStyle = "#8cc63f"; // Assinatura na cor do acento
                 sigCtx.lineWidth = 2;
             }
             window.addEventListener('resize', resizeCanvas);
@@ -440,24 +489,22 @@ HTML_TEMPLATE = """
                 document.getElementById('assinatura_base64').value = '';
             });
 
-            // Envio do Formulário
+            // --- ENVIO ---
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const btn = document.getElementById('saveButton');
                 btn.disabled = true;
-                btn.innerText = 'Salvando...';
+                btn.innerText = 'ENVIANDO...';
 
                 // Captura dados
                 const formData = new FormData(form);
                 const data = {};
                 formData.forEach((val, key) => data[key] = val);
 
-                // Tratamento de Booleans
+                // Tratamento Booleans
                 data.esteve_plantao = (data.esteve_plantao === 'sim') ? 1 : 0;
                 data.foi_atendido = (data.foi_atendido === 'sim') ? 1 : 0;
                 data.autoriza_transmissao = (data.autoriza_transmissao === 'sim') ? 1 : 0;
-                
-                // Dados binários
                 data.foto_cliente_base64 = fotoHiddenInput.value;
                 data.assinatura_base64 = document.getElementById('assinatura_base64').value;
 
@@ -470,23 +517,28 @@ HTML_TEMPLATE = """
                     const res = await resp.json();
                     
                     if(res.success) {
-                        statusMessage.innerText = "Salvo com sucesso!";
-                        statusMessage.className = "md:col-span-2 text-center p-2 rounded bg-green-200 text-green-800";
+                        statusMessage.innerText = "FICHA SALVA COM SUCESSO!";
+                        statusMessage.className = "md:col-span-2 text-center p-4 rounded bg-[#8cc63f] text-[#263318] shadow-lg animate-bounce";
                         statusMessage.classList.remove('hidden');
+                        
+                        // Reset form
                         form.reset();
                         sigCtx.clearRect(0,0,sigCanvas.width, sigCanvas.height);
                         drawPlaceholder();
                         toggleCorretor();
+                        
+                        // Scroll to message
+                        statusMessage.scrollIntoView({ behavior: 'smooth' });
                     } else {
                         throw new Error(res.message);
                     }
                 } catch (err) {
-                    statusMessage.innerText = "Erro: " + err.message;
-                    statusMessage.className = "md:col-span-2 text-center p-2 rounded bg-red-200 text-red-800";
+                    statusMessage.innerText = "ERRO: " + err.message;
+                    statusMessage.className = "md:col-span-2 text-center p-4 rounded bg-red-500 text-white shadow-lg";
                     statusMessage.classList.remove('hidden');
                 } finally {
                     btn.disabled = false;
-                    btn.innerText = 'Salvar Ficha';
+                    btn.innerText = 'SALVAR FICHA';
                 }
             });
         });
@@ -496,7 +548,6 @@ HTML_TEMPLATE = """
 """
 
 # --- Funções Auxiliares ---
-
 def formatar_telefone_n8n(telefone_bruto):
     try:
         numeros = ''.join(filter(str.isdigit, telefone_bruto))
@@ -507,7 +558,6 @@ def formatar_telefone_n8n(telefone_bruto):
         return None
 
 # --- ROTAS DA APLICAÇÃO ---
-
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
@@ -517,7 +567,7 @@ def index():
         try:
             data = request.json
             
-            # Campos Obrigatórios
+            # Validação Básica
             nome = data.get('nome')
             cidade = data.get('cidade')
             telefone_formatado = formatar_telefone_n8n(data.get('telefone'))
@@ -527,23 +577,27 @@ def index():
             if not nome or not cidade:
                 return jsonify({'success': False, 'message': 'Nome e Cidade são obrigatórios.'}), 400
 
-            # Campos Extras
+            # Dados
+            rede_social = data.get('rede_social')
+            abordagem_inicial = data.get('abordagem_inicial')
             loteamento = data.get('loteamento')
             comprou_1o_lote = data.get('comprou_1o_lote')
             nivel_interesse = data.get('nivel_interesse')
             
-            # Dados Gerais
-            rede_social = data.get('rede_social')
-            abordagem_inicial = data.get('abordagem_inicial')
             esteve_plantao = data.get('esteve_plantao') == 1
             foi_atendido = data.get('foi_atendido') == 1
-            nome_corretor = data.get('nome_corretor') if foi_atendido else None
+            
+            # Lógica do Corretor
+            nome_corretor = None
+            if foi_atendido:
+                nome_corretor = data.get('nome_corretor')
+            
             autoriza_transmissao = data.get('autoriza_transmissao') == 1
             foto_cliente_base64 = data.get('foto_cliente_base64')
             assinatura_base64 = data.get('assinatura_base64')
             data_hora = datetime.datetime.now(datetime.timezone.utc)
 
-            # 1. Salvar no Banco
+            # Inserção no Banco
             insert_query = '''
                 INSERT INTO atendimentos (
                     data_hora, nome, telefone, rede_social, abordagem_inicial, 
@@ -568,9 +622,9 @@ def index():
                     if result:
                         ticket_id = result[0]
             
-            logger.info(f"Registro salvo ID: {ticket_id}")
+            logger.info(f"Ficha salva ID: {ticket_id}")
 
-            # 2. Enviar Webhook N8N
+            # Envio N8N
             if N8N_WEBHOOK_URL:
                 try:
                     payload = {
@@ -586,17 +640,15 @@ def index():
                     }
                     requests.post(N8N_WEBHOOK_URL, json=payload, timeout=3)
                 except Exception as e_n8n:
-                    logger.warning(f"Falha webhook n8n: {e_n8n}")
+                    logger.warning(f"Erro N8N: {e_n8n}")
             
-            return jsonify({'success': True, 'message': 'Ficha salva com sucesso!'})
+            return jsonify({'success': True, 'message': 'Sucesso!'})
 
         except Exception as e:
             logger.error(f"Erro POST: {e}")
             return jsonify({'success': False, 'message': str(e)}), 500
 
-    # GET: Renderiza Template com as opções
     return render_template_string(HTML_TEMPLATE, empreendimentos=OPCOES_EMPREENDIMENTOS)
 
 if __name__ == '__main__':
-    # init_db já foi chamado no escopo global para garantir a migração no deploy
     app.run(host='0.0.0.0', port=5000, debug=True)
