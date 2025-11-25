@@ -786,6 +786,8 @@ def index():
     )
 
 # --- NOVA ROTA PARA O BOT (WEBHOOK DE AVALIAÇÃO) ---
+# ... (Mantenha o resto do código igual, mude apenas a função abaixo)
+
 @app.route('/avaliar', methods=['POST'])
 def avaliar_atendimento():
     if not DATABASE_URL:
@@ -796,11 +798,19 @@ def avaliar_atendimento():
         ticket_id = data.get('ticket_id')
         nota = data.get('nota')
 
-        if not ticket_id or nota is None: # nota is None permite nota 0 se necessário
+        if not ticket_id or nota is None: 
             return jsonify({'success': False, 'message': 'Ticket ID e Nota são obrigatórios.'}), 400
 
         try:
             nota_int = int(nota)
+            
+            # --- AJUSTE ESCALA 1 a 5 ---
+            if nota_int > 5:
+                nota_int = 5  # Trava de segurança: Teto é 5
+            if nota_int < 1:
+                nota_int = 1  # Trava de segurança: Piso é 1 (opcional, se quiser permitir 0 mude aqui)
+            # ---------------------------
+
         except ValueError:
             return jsonify({'success': False, 'message': 'Nota deve ser um número inteiro.'}), 400
 
@@ -814,7 +824,7 @@ def avaliar_atendimento():
             with conn.cursor() as cursor:
                 cursor.execute(update_query, (nota_int, ticket_id))
                 rows_updated = cursor.rowcount
-            conn.commit() # SALVA A ALTERAÇÃO
+            conn.commit() 
         
         if rows_updated > 0:
             logger.info(f"✅ Avaliação recebida para Ticket {ticket_id}: Nota {nota_int}")
@@ -826,7 +836,8 @@ def avaliar_atendimento():
     except Exception as e:
         logger.error(f"❌ Erro na avaliação: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
-
+        
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
 
