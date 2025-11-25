@@ -799,60 +799,115 @@ def index():
 # --- NOVA ROTA PARA O BOT (WEBHOOK DE AVALIAÇÃO) ---
 @app.route('/avaliar', methods=['POST'])
 def avaliar_atendimento():
-    """Endpoint chamado pelo fluxo do bot/n8n para registrar a nota do atendimento.
-
-    Aceita tanto JSON (application/json) quanto form-data/x-www-form-urlencoded.
-    Espera receber pelo menos:
-        - ticket_id: ID do atendimento (coluna id da tabela atendimentos)
-        - nota: nota inteira dada pelo cliente
-    """
     if not DATABASE_URL:
         return jsonify({'success': False, 'message': 'DB não configurado.'}), 500
 
     try:
-        # Tenta obter o payload como JSON; se não vier, tenta como form ou querystring
+        # Aceita JSON, form-url-encoded e querystring
         data = request.get_json(silent=True) or request.form.to_dict() or request.args.to_dict()
+
         logger.info(f"📩 /avaliar - payload recebido: {data}")
 
         if not data:
-            return jsonify({'success': False, 'message': 'Nenhum dado recebido no corpo da requisição.'}), 400
+            return jsonify({'success': False, 'message': 'Nenhum dado recebido na requisição.'}), 400
 
         ticket_id = data.get('ticket_id')
+        telefone_bruto = data.get('telefone')
         nota = data.get('nota')
 
-        # ticket_id pode vir como string; apenas checamos se está preenchido
-        if not ticket_id or nota is None:  # nota is None permite nota 0 se necessário
-            return jsonify({'success': False, 'message': 'Ticket ID e Nota são obrigatórios.'}), 400
+        if nota is None:
+            return jsonify({'success': False, 'message': 'Nota é obrigatória.'}), 400
 
-        # Força conversão para int (aceita strings como "10")
         try:
             nota_int = int(str(nota).strip())
         except ValueError:
             return jsonify({'success': False, 'message': 'Nota deve ser um número inteiro.'}), 400
 
-        update_query = '''
-            UPDATE atendimentos 
-            SET nota_atendimento = %s
-            WHERE id = %s
-        '''
+        # Garante limite entre 1 e 5
+        if nota_int > 5:
+            nota_int = 5
+        if nota_int < 1:
+            nota_int = 1
 
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cursor:
-                cursor.execute(update_query, (nota_int, ticket_id))
-                rows_updated = cursor.rowcount
-            conn.commit()  # SALVA A ALTERAÇÃO
 
-        if rows_updated > 0:
-            logger.info(f"✅ Avaliação recebida para Ticket {ticket_id}: Nota {nota_int}")
-            return jsonify({'success': True, 'message': 'Avaliação salva!'})
-        else:
-            logger.warning(f"⚠️ Ticket ID {ticket_id} não encontrado para avaliação.")
-            return jsonify({'success': False, 'message': 'Ticket ID não encontrado.'}), 404
+                # Se não vier ticket_id, tenta localizar pelo telefone (último atendimento)
+                if not ticket_id and telefone_bruto:
+                    numeros = ''.join(filter(str.isdigit, str(telefone_bruto)))
+                    if not numeros:
+                        return jsonify({'success': False, 'message': 'Telefone inválido.'}), 400
+
+                    if not numeros.startswith('55'):
+                        numeros = '55' + numeros
+
+                    telefone_formatado = f'+{numeros}'
+                    logger.info(f"🔎 Buscando atendimento pelo telefone formatado: {telefone_formatado}")
+
+                    cursor.execute(
+                        """
+                        SELECT id 
+                        FROM atendimentos 
+                        WHERE telefone = %s 
+                        ORDER BY data_hora DESC 
+                        LIMIT 1
+                        """,
+                        (telefone_formatado,)
+                    )
+                    row = cursor.fetchone()
+                    if row:
+                        ticket_id = row[0]
+                        logger.info(f"✅ Atendimento encontrado via telefone. Ticket ID: {ticket_id}")
+                    else:
+                        logger.warning("⚠️ Atendimento não encontrado para o telefone informado.")
+                        return jsonify({
+                            'success': False,
+                            'message': 'Atendimento não encontrado para este telefone.'
+                        }), 404
+
+                # Se ainda não tiver ticket_id, não tem como atualizar
+                if not ticket_id:
+                    logger.warning("⚠️ Avaliação sem ticket_id e sem telefone correspondente.")
+                    return jsonify({
+                        'success': False,
+                        'message': 'Atendimento não encontrado (sem ID e sem Telefone correspondente).'
+                    }), 404
+
+                # Atualiza a nota do atendimento
+                cursor.execute(
+                    """
+                    UPDATE atendimentos 
+                    SET nota_atendimento = %s
+                    WHERE id = %s
+                    """,
+                    (nota_int, ticket_id)
+                )
+                rows_updated = cursor.rowcount
+                conn.commit()
+
+            if rows_updated > 0:
+                logger.info(f"✅ Avaliação salva. Ticket ID: {ticket_id}, Nota: {nota_int}")
+                return jsonify({
+                    'success': True,
+                    'message': 'Avaliação salva com sucesso!',
+                    'ticket_id': ticket_id
+                })
+            else:
+                logger.warning(f"⚠️ Atendimento não encontrado para o Ticket ID {ticket_id}.")
+                return jsonify({
+                    'success': False,
+                    'message': 'Atendimento não encontrado para o Ticket ID informado.'
+                }), 404
 
     except Exception as e:
-        logger.error(f"❌ Erro na avaliação: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        logger.error(f"❌ Erro ao salvar avaliação: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'Erro interno ao salvar a avaliação.'
+        }), 500
+
 
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
