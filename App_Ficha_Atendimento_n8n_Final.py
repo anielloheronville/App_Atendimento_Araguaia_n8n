@@ -107,9 +107,11 @@ def init_db():
         loteamento TEXT
     )
     '''
+    # ADICIONEI A COLUNA nota_atendimento AQUI
     migrations = [
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS comprou_1o_lote TEXT;",
-        "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nivel_interesse TEXT;"
+        "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nivel_interesse TEXT;",
+        "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nota_atendimento INTEGER DEFAULT 0;"
     ]
     try:
         conn = psycopg2.connect(DATABASE_URL)
@@ -236,45 +238,34 @@ HTML_TEMPLATE = """
             cursor: pointer;
         }
 
-        /* --- MODO PDF: ESTILO COMPACTO PARA 1 PÁGINA --- */
+        /* --- MODO PDF: ESTILO COMPACTO --- */
         .pdf-mode {
             background-color: #ffffff !important;
             border: none !important;
             box-shadow: none !important;
             color: #000000 !important;
-            padding: 10px 20px !important; /* Margem interna reduzida */
+            padding: 10px 20px !important;
             width: 100% !important;
             max-width: 100% !important;
         }
-        
         .pdf-mode h1 { font-size: 1.5rem !important; margin-bottom: 5px !important; }
         .pdf-mode hr { margin: 5px 0 !important; }
-        
-        /* Compactar Grids */
         .pdf-mode .grid { gap: 10px !important; } 
         .pdf-mode .flex-col { gap: 6px !important; }
-        
-        /* Compactar Inputs */
-        .pdf-mode .form-input, 
-        .pdf-mode .form-textarea, 
-        .pdf-mode .form-select {
+        .pdf-mode .form-input, .pdf-mode .form-textarea, .pdf-mode .form-select {
             background-color: #ffffff !important;
             color: #000000 !important;
             border: 1px solid #ccc !important;
-            padding: 2px 6px !important; /* Padding mínimo */
-            font-size: 0.75rem !important; /* Fonte menor */
+            padding: 2px 6px !important;
+            font-size: 0.75rem !important;
             height: auto !important;
         }
-
-        /* Compactar Labels */
         .pdf-mode label, .pdf-mode span {
             color: #000000 !important;
             font-size: 0.7rem !important;
             font-weight: 700 !important;
             margin-bottom: 0px !important;
         }
-
-        /* Compactar Foto */
         .pdf-mode #photoContainer {
             padding: 2px !important;
             background: none !important;
@@ -284,24 +275,17 @@ HTML_TEMPLATE = """
             width: 80px !important;
             height: 80px !important;
         }
-
-        /* Compactar Assinatura */
         .pdf-mode .signature-canvas {
-            height: 60px !important; /* Assinatura mais baixa */
+            height: 60px !important;
             border: 1px solid #000 !important;
             background-color: #fff !important;
         }
-
-        /* Compactar Radio Buttons */
         .pdf-mode input[type="radio"] { transform: scale(0.8); }
-
-        /* Esconder elementos desnecessários no PDF */
         .pdf-mode .hidden-pdf { display: none !important; }
         .hidden { display: none; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
-    
     <header class="w-full p-6 text-center">
         <h1 class="text-4xl md:text-5xl logo-text text-white">Araguaia</h1>
         <h2 class="text-xl md:text-2xl font-semibold text-white mt-1">Imóveis</h2>
@@ -313,14 +297,12 @@ HTML_TEMPLATE = """
 
     <main class="flex-grow flex items-center justify-center p-4">
         <div id="fichaContainer" class="form-container w-full max-w-4xl mx-auto p-6 md:p-10">
-            
             <div id="pdfHeader" class="hidden text-center mb-4">
                 <h1 class="text-3xl font-bold text-[#263318]">FICHA DE ATENDIMENTO</h1>
                 <hr class="border-[#8cc63f] my-2">
             </div>
 
             <form id="preAtendimentoForm" class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                
                 <div class="flex flex-col gap-5">
                     <div>
                         <label for="nome" class="block text-sm font-semibold mb-2 text-white">Nome do Cliente*</label>
@@ -334,12 +316,10 @@ HTML_TEMPLATE = """
                         <label for="rede_social" class="block text-sm font-semibold mb-2 text-gray-300">Instagram / Facebook</label>
                         <input type="text" id="rede_social" name="rede_social" class="form-input" placeholder="@usuario">
                     </div>
-                    
                     <div>
                         <label for="cidade" class="block text-sm font-semibold mb-2 text-white">Cidade do Atendimento*</label>
                         <input type="text" id="cidade" name="cidade" class="form-input" required>
                     </div>
-                    
                     <div>
                         <label for="loteamento" class="block text-sm font-semibold mb-2 text-white">Loteamento / Empreendimento</label>
                         <select id="loteamento" name="loteamento" class="form-select">
@@ -349,7 +329,6 @@ HTML_TEMPLATE = """
                             {% endfor %}
                         </select>
                     </div>
-                    
                     <div>
                         <label for="comprou_1o_lote" class="block text-sm font-semibold mb-2 text-white">Realizou o sonho da compra do 1º Lote?</label>
                         <select id="comprou_1o_lote" name="comprou_1o_lote" class="form-select" required>
@@ -358,7 +337,6 @@ HTML_TEMPLATE = """
                             <option value="Não">Não</option>
                         </select>
                     </div>
-
                     <div>
                         <label for="nivel_interesse" class="block text-sm font-semibold mb-2 text-white">Nível de Interesse</label>
                         <select id="nivel_interesse" name="nivel_interesse" class="form-select">
@@ -370,7 +348,6 @@ HTML_TEMPLATE = """
                 </div>
 
                 <div class="flex flex-col gap-5">
-                    
                     <div class="p-4 rounded-lg bg-black/20 border border-white/10" id="photoContainer">
                         <label class="block text-sm font-semibold mb-3 text-white">Foto do Cliente</label>
                         <div class="flex flex-col items-center gap-3">
@@ -378,20 +355,11 @@ HTML_TEMPLATE = """
                                 <canvas id="photoCanvas" class="photo-canvas w-32 h-32 rounded-full object-cover"></canvas>
                                 <video id="videoPreview" class="video-preview w-32 h-32 rounded-full object-cover hidden" autoplay playsinline></video>
                             </div>
-                            
                             <div class="flex flex-wrap justify-center gap-2" data-html2canvas-ignore="true">
-                                <button type="button" id="startWebcam" class="text-xs bg-gray-700 text-white px-3 py-2 rounded hover:bg-gray-600 font-semibold uppercase">
-                                    📷 Câmera
-                                </button>
-                                <button type="button" id="switchCamera" class="hidden text-xs bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-500 font-semibold uppercase">
-                                    🔄 Inverter
-                                </button>
-                                <button type="button" id="takePhoto" class="hidden text-xs bg-green-600 text-white px-3 py-2 rounded hover:bg-green-500 font-semibold uppercase">
-                                    📸 Capturar
-                                </button>
-                                <button type="button" id="clearPhoto" class="hidden text-xs text-red-400 underline">
-                                    Remover
-                                </button>
+                                <button type="button" id="startWebcam" class="text-xs bg-gray-700 text-white px-3 py-2 rounded hover:bg-gray-600 font-semibold uppercase">📷 Câmera</button>
+                                <button type="button" id="switchCamera" class="hidden text-xs bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-500 font-semibold uppercase">🔄 Inverter</button>
+                                <button type="button" id="takePhoto" class="hidden text-xs bg-green-600 text-white px-3 py-2 rounded hover:bg-green-500 font-semibold uppercase">📸 Capturar</button>
+                                <button type="button" id="clearPhoto" class="hidden text-xs text-red-400 underline">Remover</button>
                             </div>
                         </div>
                         <input type="hidden" id="foto_cliente_base64" name="foto_cliente_base64">
@@ -405,7 +373,6 @@ HTML_TEMPLATE = """
                                 <label class="flex items-center cursor-pointer"><input type="radio" name="esteve_plantao" value="nao" class="accent-[#8cc63f]"> <span class="ml-2">Não</span></label>
                             </div>
                         </div>
-
                         <div>
                             <span class="block text-sm font-semibold mb-2 text-white">Já possui corretor na Araguaia?*</span>
                             <div class="flex gap-4">
@@ -413,7 +380,6 @@ HTML_TEMPLATE = """
                                 <label class="flex items-center cursor-pointer"><input type="radio" name="foi_atendido" value="nao" id="atendido_nao" class="accent-[#8cc63f]"> <span class="ml-2">Não</span></label>
                             </div>
                         </div>
-                        
                         <div id="campoNomeCorretor" class="hidden animate-fade-in p-3 bg-[#8cc63f]/10 border border-[#8cc63f] rounded-md">
                             <label for="nome_corretor" class="block text-sm font-bold mb-1 text-[#8cc63f]">Selecione o Corretor:</label>
                             <select id="nome_corretor" name="nome_corretor" class="form-select font-semibold">
@@ -423,7 +389,6 @@ HTML_TEMPLATE = """
                                 {% endfor %}
                             </select>
                         </div>
-
                         <div>
                             <span class="block text-sm font-semibold mb-2 text-white">Autoriza lista de transmissão?*</span>
                             <div class="flex gap-4">
@@ -450,24 +415,14 @@ HTML_TEMPLATE = """
 
                 <div class="md:col-span-2 flex flex-col md:flex-row justify-end items-center gap-4 mt-4 btn-area">
                     <span class="text-sm font-medium mr-auto" style="color: var(--cor-texto-cinza);" id="dataAtual">Sorriso/MT</span>
-                    
-                    <button type="button" id="btnGerarPDF" class="btn-pdf w-full md:w-auto shadow-lg">
-                        📄 Baixar Cópia (PDF)
-                    </button>
-
-                    <button type="submit" id="saveButton" class="btn-salvar w-full md:w-auto shadow-lg hover:shadow-xl">
-                        Salvar Ficha
-                    </button>
+                    <button type="button" id="btnGerarPDF" class="btn-pdf w-full md:w-auto shadow-lg">📄 Baixar Cópia (PDF)</button>
+                    <button type="submit" id="saveButton" class="btn-salvar w-full md:w-auto shadow-lg hover:shadow-xl">Salvar Ficha</button>
                 </div>
-
                 <div id="statusMessage" class="md:col-span-2 text-center p-3 rounded font-bold hidden"></div>
             </form>
         </div>
     </main>
-
-    <footer class="w-full p-6 text-center text-xs opacity-50">
-        © <span id="currentYear"></span> Araguaia Imóveis. Todos os direitos reservados.
-    </footer>
+    <footer class="w-full p-6 text-center text-xs opacity-50">© <span id="currentYear"></span> Araguaia Imóveis. Todos os direitos reservados.</footer>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -477,7 +432,6 @@ HTML_TEMPLATE = """
             const form = document.getElementById('preAtendimentoForm');
             const statusMessage = document.getElementById('statusMessage');
 
-            // --- LÓGICA DO CAMPO CORRETOR ---
             const atendidoSim = document.getElementById('atendido_sim');
             const atendidoNao = document.getElementById('atendido_nao');
             const campoNome = document.getElementById('campoNomeCorretor');
@@ -496,50 +450,42 @@ HTML_TEMPLATE = """
             atendidoSim.addEventListener('change', toggleCorretor);
             atendidoNao.addEventListener('change', toggleCorretor);
 
-            // --- GERAÇÃO DE PDF (COMPACTO) ---
+            // PDF Logic
             document.getElementById('btnGerarPDF').addEventListener('click', function() {
                 const btnPdf = this;
                 const originalText = btnPdf.innerText;
                 const element = document.getElementById('fichaContainer');
                 const pdfHeader = document.getElementById('pdfHeader');
 
-                // CAPTURAR NOME E FORMATAR
                 let nomeCliente = document.getElementById('nome').value.trim();
                 if (!nomeCliente) nomeCliente = "Sem_Nome";
-                // Substituir espaços por "_" e remover caracteres especiais
                 const nomeFormatado = nomeCliente.replace(/[^a-zA-Z0-9À-ÿ ]/g, "").replace(/\s+/g, "_");
                 const nomeArquivo = `Ficha_Atendimento_Araguaia_${nomeFormatado}.pdf`;
 
                 btnPdf.innerText = "Gerando...";
                 btnPdf.disabled = true;
 
-                // 1. Ativar Modo PDF (CSS Compacto)
                 element.classList.add('pdf-mode'); 
                 pdfHeader.classList.remove('hidden'); 
-                
-                // Ocultar botões
                 const botoes = document.querySelectorAll('.btn-area button, .btn-acao-secundaria');
                 botoes.forEach(b => b.style.opacity = '0');
 
-                // 2. Configurações para garantir 1 página
                 const opt = {
-                    margin:       [5, 5, 5, 5], 
-                    filename:     nomeArquivo, // NOME DINÂMICO AQUI
-                    image:        { type: 'jpeg', quality: 0.95 },
-                    html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
-                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    margin: [5, 5, 5, 5], 
+                    filename: nomeArquivo,
+                    image: { type: 'jpeg', quality: 0.95 },
+                    html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
                 };
 
-                // 3. Gerar e Salvar
                 html2pdf().set(opt).from(element).save().then(function(){
-                    // 4. Restaurar
                     element.classList.remove('pdf-mode');
                     pdfHeader.classList.add('hidden');
                     botoes.forEach(b => b.style.opacity = '1');
                     btnPdf.innerText = originalText;
                     btnPdf.disabled = false;
                 }).catch(function(err) {
-                    alert("Erro ao gerar PDF: " + err);
+                    alert("Erro PDF: " + err);
                     element.classList.remove('pdf-mode');
                     pdfHeader.classList.add('hidden');
                     botoes.forEach(b => b.style.opacity = '1');
@@ -548,7 +494,7 @@ HTML_TEMPLATE = """
                 });
             });
 
-            // --- CÂMERA ---
+            // Camera Logic
             const video = document.getElementById('videoPreview');
             const photoCanvas = document.getElementById('photoCanvas');
             const photoCtx = photoCanvas.getContext('2d');
@@ -588,7 +534,7 @@ HTML_TEMPLATE = """
                     clearPhotoBtn.classList.remove('hidden');
                     startWebcamBtn.classList.add('hidden');
                 } catch (err) {
-                    alert("Erro ao acessar a câmera. Verifique permissões HTTPS.");
+                    alert("Erro Câmera: " + err);
                 }
             }
 
@@ -627,7 +573,7 @@ HTML_TEMPLATE = """
                 if(stream) stream.getTracks().forEach(t => t.stop());
             });
 
-            // --- ASSINATURA ---
+            // Signature Logic
             const sigCanvas = document.getElementById('signatureCanvas');
             const sigCtx = sigCanvas.getContext('2d');
             let drawing = false;
@@ -685,7 +631,7 @@ HTML_TEMPLATE = """
                 document.getElementById('assinatura_base64').value = '';
             });
 
-            // --- ENVIO ---
+            // Submit Logic
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const btn = document.getElementById('saveButton');
@@ -735,15 +681,12 @@ HTML_TEMPLATE = """
     </script>
 </body>
 </html>
-
 """
 
 # --- AUXILIARES ---
 def formatar_telefone_n8n(telefone_bruto):
     try:
-        # Remove tudo que não é dígito
         numeros = ''.join(filter(str.isdigit, telefone_bruto))
-        # Se tiver 10 ou 11 dígitos, adiciona o +55
         if 10 <= len(numeros) <= 11:
             return f"+55{numeros}"
         return None
@@ -761,7 +704,6 @@ def index():
         try:
             data = request.json
             
-            # Validações Básicas
             nome = data.get('nome')
             cidade = data.get('cidade')
             telefone_formatado = formatar_telefone_n8n(data.get('telefone'))
@@ -771,29 +713,21 @@ def index():
             if not nome or not cidade:
                 return jsonify({'success': False, 'message': 'Nome e Cidade são obrigatórios.'}), 400
 
-            # Captura dos campos
             rede_social = data.get('rede_social')
             abordagem_inicial = data.get('abordagem_inicial')
             loteamento = data.get('loteamento')
             comprou_1o_lote = data.get('comprou_1o_lote')
             nivel_interesse = data.get('nivel_interesse')
             
-            # Tratamento de Booleanos (vem como bool ou 0/1 do JS)
             esteve_plantao = data.get('esteve_plantao') == 1
             foi_atendido = data.get('foi_atendido') == 1
             autoriza_transmissao = data.get('autoriza_transmissao') == 1
-            
-            # Corretor só é salvo se "foi_atendido" for verdadeiro
             nome_corretor = data.get('nome_corretor') if foi_atendido else None
             
-            # Imagens (Base64)
             foto_cliente_base64 = data.get('foto_cliente_base64')
             assinatura_base64 = data.get('assinatura_base64')
-            
-            # Timestamp atual (UTC)
             data_hora = datetime.datetime.now(datetime.timezone.utc)
 
-            # --- INSERÇÃO NO BANCO DE DADOS ---
             insert_query = '''
                 INSERT INTO atendimentos (
                     data_hora, nome, telefone, rede_social, abordagem_inicial, 
@@ -833,10 +767,8 @@ def index():
                         "nivel_interesse": nivel_interesse,
                         "nome_corretor": nome_corretor,
                         "timestamp": str(data_hora),
-                        "link_foto": "A foto está salva no banco de dados (Base64)", # Opcional: ajustar se quiser enviar o base64
                         "origem": "App Ficha Digital"
                     }
-                    # Timeout curto para não travar a UI do usuário
                     requests.post(N8N_WEBHOOK_URL, json=payload, timeout=3)
                 except Exception as e_n8n:
                     logger.warning(f"⚠️ Erro ao acionar N8N: {e_n8n}")
@@ -847,14 +779,59 @@ def index():
             logger.error(f"❌ Erro no processamento POST: {e}")
             return jsonify({'success': False, 'message': f"Erro interno: {str(e)}"}), 500
 
-    # --- RENDERIZAÇÃO DA PÁGINA (GET) ---
     return render_template_string(
         HTML_TEMPLATE, 
         empreendimentos=OPCOES_EMPREENDIMENTOS, 
         corretores=OPCOES_CORRETORES
     )
 
-# --- EXECUÇÃO ---
+# --- NOVA ROTA PARA O BOT (WEBHOOK DE AVALIAÇÃO) ---
+@app.route('/avaliar', methods=['POST'])
+def avaliar_atendimento():
+    """
+    Rota que o BOT (n8n/Typebot) vai chamar para salvar a nota.
+    Payload esperado: { "ticket_id": 123, "nota": 5 }
+    """
+    if not DATABASE_URL:
+        return jsonify({'success': False, 'message': 'DB não configurado.'}), 500
+
+    try:
+        data = request.json
+        ticket_id = data.get('ticket_id')
+        nota = data.get('nota')
+
+        if not ticket_id or not nota:
+            return jsonify({'success': False, 'message': 'Ticket ID e Nota são obrigatórios.'}), 400
+
+        # Validação da nota (opcional, mas recomendada)
+        try:
+            nota_int = int(nota)
+            if nota_int < 1 or nota_int > 5:
+                 return jsonify({'success': False, 'message': 'Nota deve ser entre 1 e 5.'}), 400
+        except ValueError:
+            return jsonify({'success': False, 'message': 'Nota deve ser um número inteiro.'}), 400
+
+        update_query = '''
+            UPDATE atendimentos 
+            SET nota_atendimento = %s
+            WHERE id = %s
+        '''
+        
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(update_query, (nota_int, ticket_id))
+                rows_updated = cursor.rowcount
+        
+        if rows_updated > 0:
+            logger.info(f"✅ Avaliação recebida para Ticket {ticket_id}: Nota {nota_int}")
+            return jsonify({'success': True, 'message': 'Avaliação salva!'})
+        else:
+            logger.warning(f"⚠️ Ticket ID {ticket_id} não encontrado para avaliação.")
+            return jsonify({'success': False, 'message': 'Ticket ID não encontrado.'}), 404
+
+    except Exception as e:
+        logger.error(f"❌ Erro na avaliação: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 if __name__ == '__main__':
-    # Porta padrão 5000, escutando em todos os IPs
     app.run(host='0.0.0.0', port=5000, debug=True)
