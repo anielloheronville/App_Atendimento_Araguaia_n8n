@@ -804,14 +804,17 @@ def avaliar_atendimento():
 
     Aceita:
       - ticket_id + nota
-      - telefone + nota  (telefone em formato WAID: 55 + DDD + número ou já DDD+número)
+      - telefone + nota (telefone vindo do WhatsApp, ex.: WaId 5566...)
 
     Fluxo:
       1. Lê o payload (JSON, form ou query).
       2. Valida e converte 'nota' para int entre 1 e 5.
       3. Se houver ticket_id, atualiza direto.
-      4. Se não houver ticket_id mas houver telefone, normaliza telefone para o
-         formato DDD+Número (como está gravado na tabela) e busca o último atendimento.
+      4. Se não houver ticket_id mas houver telefone, normaliza o telefone
+         para o formato +55 + DDD + número (como está gravado na tabela)
+         e tenta:
+             a) match exato
+             b) fallback pelos últimos 8 dígitos
       5. Atualiza nota_atendimento na tabela atendimentos.
     """
     if not DATABASE_URL:
@@ -826,7 +829,7 @@ def avaliar_atendimento():
             return jsonify({'success': False, 'message': 'Nenhum dado recebido na requisição.'}), 400
 
         ticket_id = data.get('ticket_id')
-        telefone_bruto = data.get('telefone')
+        telefone_bruto = data.get('telefone')  # vindo do n8n (WaId ou DDD+numero)
         nota = data.get('nota')
 
         # ============================
@@ -836,7 +839,6 @@ def avaliar_atendimento():
             return jsonify({'success': False, 'message': 'Nota é obrigatória.'}), 400
 
         try:
-            # Garante que a nota seja convertida para inteiro
             nota_int = int(str(nota).strip())
         except ValueError:
             return jsonify({'success': False, 'message': 'Nota deve ser um número inteiro.'}), 400
@@ -857,36 +859,57 @@ def avaliar_atendimento():
                 # Se NÃO vier ticket_id, tenta localizar por telefone
                 # -------------------------------------------------
                 if not ticket_id and telefone_bruto:
-                    numeros = ''.join(filter(str.isdigit, str(telefone_bruto)))
-                    if not numeros:
+                    nums = ''.join(filter(str.isdigit, str(telefone_bruto)))
+                    if not nums:
                         return jsonify({'success': False, 'message': 'Telefone inválido.'}), 400
 
-                    # Caso venha em formato WhatsApp (55 + DDD + número),
-                    # remove o código do país e mantém apenas DDD + número,
-                    # que é como você grava na ficha (ex.: 65999999999).
-                    if numeros.startswith('55') and len(numeros) > 11:
-                        waid_original = numeros
-                        numeros = numeros[2:]  # remove o '55'
-                        logger.info(
-                            f"📱 WAID recebido: {waid_original} | "
-                            f"Normalizado para DDD+Número: {numeros}"
-                        )
+                    # Se vier em formato WAID (55 + DDD + número), remove o 55
+                    # e normaliza para o mesmo padrão da ficha: +55 + DDD + número
+                    if nums.startswith('55') and len(nums) > 11:
+                        nacional = nums[2:]  # tira o 55
+                        logger.info(f"📱 WAID recebido: {nums} | Nacional: {nacional}")
                     else:
-                        logger.info(f"📱 Telefone recebido já em formato DDD+Número: {numeros}")
+                        nacional = nums
+                        logger.info(f"📱 Telefone recebido (sem DDI): {nacional}")
 
-                    telefone_normalizado = numeros  # mesmo formato da coluna telefone na tabela
+                    if len(nacional) < 8:
+                        return jsonify({'success': False, 'message': 'Telefone muito curto.'}), 400
 
+                    telefone_formatado = f"+55{nacional}"
+                    logger.info(f"🔍 Tentando match exato para telefone: {telefone_formatado}")
+
+                    # 1ª tentativa: match exato
                     cursor.execute(
                         """
                         SELECT id 
                         FROM atendimentos 
-                        WHERE telefone = %s 
+                        WHERE telefone = %s
                         ORDER BY data_hora DESC 
                         LIMIT 1
                         """,
-                        (telefone_normalizado,)
+                        (telefone_formatado,)
                     )
                     row = cursor.fetchone()
+
+                    # 2ª tentativa (fallback): últimos 8 dígitos
+                    if not row:
+                        ultimos = nacional[-8:]
+                        logger.info(
+                            f"🔁 Fallback por últimos 8 dígitos: %{ultimos} "
+                            f"(telefone banco LIKE '%{ultimos}')"
+                        )
+                        cursor.execute(
+                            """
+                            SELECT id
+                            FROM atendimentos
+                            WHERE telefone LIKE %s
+                            ORDER BY data_hora DESC
+                            LIMIT 1
+                            """,
+                            (f"%{ultimos}",)
+                        )
+                        row = cursor.fetchone()
+
                     if row:
                         ticket_id = row[0]
                         logger.info(f"✅ Atendimento encontrado via telefone. Ticket ID: {ticket_id}")
@@ -942,5 +965,6 @@ def avaliar_atendimento():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
 
 
