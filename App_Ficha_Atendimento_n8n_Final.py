@@ -788,10 +788,6 @@ def index():
 # --- NOVA ROTA PARA O BOT (WEBHOOK DE AVALIAÇÃO) ---
 @app.route('/avaliar', methods=['POST'])
 def avaliar_atendimento():
-    """
-    Rota que o BOT (n8n/Typebot) vai chamar para salvar a nota.
-    Payload esperado: { "ticket_id": 123, "nota": 5 }
-    """
     if not DATABASE_URL:
         return jsonify({'success': False, 'message': 'DB não configurado.'}), 500
 
@@ -800,14 +796,11 @@ def avaliar_atendimento():
         ticket_id = data.get('ticket_id')
         nota = data.get('nota')
 
-        if not ticket_id or not nota:
+        if not ticket_id or nota is None: # nota is None permite nota 0 se necessário
             return jsonify({'success': False, 'message': 'Ticket ID e Nota são obrigatórios.'}), 400
 
-        # Validação da nota (opcional, mas recomendada)
         try:
             nota_int = int(nota)
-            if nota_int < 1 or nota_int > 5:
-                 return jsonify({'success': False, 'message': 'Nota deve ser entre 1 e 5.'}), 400
         except ValueError:
             return jsonify({'success': False, 'message': 'Nota deve ser um número inteiro.'}), 400
 
@@ -821,6 +814,7 @@ def avaliar_atendimento():
             with conn.cursor() as cursor:
                 cursor.execute(update_query, (nota_int, ticket_id))
                 rows_updated = cursor.rowcount
+            conn.commit() # SALVA A ALTERAÇÃO
         
         if rows_updated > 0:
             logger.info(f"✅ Avaliação recebida para Ticket {ticket_id}: Nota {nota_int}")
@@ -835,3 +829,4 @@ def avaliar_atendimento():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
