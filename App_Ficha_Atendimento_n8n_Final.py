@@ -236,45 +236,67 @@ HTML_TEMPLATE = """
             cursor: pointer;
         }
 
-        /* --- ESTILOS ESPECÍFICOS PARA O MODO PDF (FUNDO BRANCO) --- */
+        /* --- MODO PDF: ESTILO COMPACTO PARA 1 PÁGINA --- */
         .pdf-mode {
             background-color: #ffffff !important;
-            border: 2px solid #263318 !important;
+            border: none !important;
             box-shadow: none !important;
             color: #000000 !important;
-            padding: 20px !important;
+            padding: 10px 20px !important; /* Margem interna reduzida */
+            width: 100% !important;
+            max-width: 100% !important;
         }
         
-        .pdf-mode h1, .pdf-mode h2 {
-            color: #263318 !important; /* Mantém verde da marca no título */
-            text-shadow: none !important;
-        }
+        .pdf-mode h1 { font-size: 1.5rem !important; margin-bottom: 5px !important; }
+        .pdf-mode hr { margin: 5px 0 !important; }
         
-        .pdf-mode label, .pdf-mode span, .pdf-mode p {
-            color: #000000 !important;
-            font-weight: bold !important;
-        }
-
+        /* Compactar Grids */
+        .pdf-mode .grid { gap: 10px !important; } 
+        .pdf-mode .flex-col { gap: 6px !important; }
+        
+        /* Compactar Inputs */
         .pdf-mode .form-input, 
         .pdf-mode .form-textarea, 
         .pdf-mode .form-select {
             background-color: #ffffff !important;
             color: #000000 !important;
-            border: 1px solid #999 !important;
-            box-shadow: none !important;
+            border: 1px solid #ccc !important;
+            padding: 2px 6px !important; /* Padding mínimo */
+            font-size: 0.75rem !important; /* Fonte menor */
+            height: auto !important;
         }
 
-        .pdf-mode .logo-text { color: #263318 !important; }
-        
-        /* Ajuste para canvas no PDF */
-        .pdf-mode canvas {
+        /* Compactar Labels */
+        .pdf-mode label, .pdf-mode span {
+            color: #000000 !important;
+            font-size: 0.7rem !important;
+            font-weight: 700 !important;
+            margin-bottom: 0px !important;
+        }
+
+        /* Compactar Foto */
+        .pdf-mode #photoContainer {
+            padding: 2px !important;
+            background: none !important;
+            border: 1px solid #eee !important;
+        }
+        .pdf-mode .photo-canvas {
+            width: 80px !important;
+            height: 80px !important;
+        }
+
+        /* Compactar Assinatura */
+        .pdf-mode .signature-canvas {
+            height: 60px !important; /* Assinatura mais baixa */
             border: 1px solid #000 !important;
             background-color: #fff !important;
         }
-        
-        /* Ocultar placeholders de inputs vazios no PDF se desejar, ou manter */
-        .pdf-mode ::placeholder { color: #ccc; }
 
+        /* Compactar Radio Buttons */
+        .pdf-mode input[type="radio"] { transform: scale(0.8); }
+
+        /* Esconder elementos desnecessários no PDF */
+        .pdf-mode .hidden-pdf { display: none !important; }
         .hidden { display: none; }
     </style>
 </head>
@@ -292,7 +314,7 @@ HTML_TEMPLATE = """
     <main class="flex-grow flex items-center justify-center p-4">
         <div id="fichaContainer" class="form-container w-full max-w-4xl mx-auto p-6 md:p-10">
             
-            <div id="pdfHeader" class="hidden text-center mb-6">
+            <div id="pdfHeader" class="hidden text-center mb-4">
                 <h1 class="text-3xl font-bold text-[#263318]">FICHA DE ATENDIMENTO</h1>
                 <hr class="border-[#8cc63f] my-2">
             </div>
@@ -359,7 +381,7 @@ HTML_TEMPLATE = """
                             
                             <div class="flex flex-wrap justify-center gap-2" data-html2canvas-ignore="true">
                                 <button type="button" id="startWebcam" class="text-xs bg-gray-700 text-white px-3 py-2 rounded hover:bg-gray-600 font-semibold uppercase">
-                                    📷 Abrir Câmera
+                                    📷 Câmera
                                 </button>
                                 <button type="button" id="switchCamera" class="hidden text-xs bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-500 font-semibold uppercase">
                                     🔄 Inverter
@@ -414,7 +436,7 @@ HTML_TEMPLATE = """
                 
                 <div class="md:col-span-2">
                     <label for="abordagem_inicial" class="block text-sm font-semibold mb-2 text-white">Observações / Abordagem Inicial</label>
-                    <textarea id="abordagem_inicial" name="abordagem_inicial" rows="3" class="form-textarea" placeholder="Detalhes importantes sobre o atendimento..."></textarea>
+                    <textarea id="abordagem_inicial" name="abordagem_inicial" rows="3" class="form-textarea" placeholder="Detalhes importantes..."></textarea>
                 </div>
 
                 <div class="md:col-span-2">
@@ -474,7 +496,7 @@ HTML_TEMPLATE = """
             atendidoSim.addEventListener('change', toggleCorretor);
             atendidoNao.addEventListener('change', toggleCorretor);
 
-            // --- GERAÇÃO DE PDF (CONFIGURADO PARA FUNDO BRANCO) ---
+            // --- GERAÇÃO DE PDF (COMPACTO) ---
             document.getElementById('btnGerarPDF').addEventListener('click', function() {
                 const btnPdf = this;
                 const originalText = btnPdf.innerText;
@@ -484,27 +506,26 @@ HTML_TEMPLATE = """
                 btnPdf.innerText = "Gerando...";
                 btnPdf.disabled = true;
 
-                // 1. Preparar o ambiente para PDF (Modo Impressão)
-                element.classList.add('pdf-mode'); // Ativa o CSS de fundo branco
-                pdfHeader.classList.remove('hidden'); // Mostra título interno
+                // 1. Ativar Modo PDF (CSS Compacto)
+                element.classList.add('pdf-mode'); 
+                pdfHeader.classList.remove('hidden'); 
                 
                 // Ocultar botões
                 const botoes = document.querySelectorAll('.btn-area button, .btn-acao-secundaria');
                 botoes.forEach(b => b.style.opacity = '0');
 
-                // 2. Configurações do html2pdf
+                // 2. Configurações para garantir 1 página
                 const opt = {
-                    margin:       [10, 10, 10, 10],
+                    margin:       [5, 5, 5, 5], // Margens mínimas
                     filename:     'Ficha_Atendimento_Araguaia.pdf',
-                    image:        { type: 'jpeg', quality: 0.98 },
-                    // html2canvas configurado para branco e escala menor para caber melhor
+                    image:        { type: 'jpeg', quality: 0.95 },
                     html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
                     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
                 };
 
                 // 3. Gerar e Salvar
                 html2pdf().set(opt).from(element).save().then(function(){
-                    // 4. Restaurar o layout original (Modo Dark)
+                    // 4. Restaurar
                     element.classList.remove('pdf-mode');
                     pdfHeader.classList.add('hidden');
                     botoes.forEach(b => b.style.opacity = '1');
@@ -533,8 +554,7 @@ HTML_TEMPLATE = """
             let currentFacingMode = 'environment'; 
 
             function drawPlaceholder() {
-                // Desenha placeholder neutro
-                photoCtx.fillStyle = '#f4f4f4'; // Fundo claro para o placeholder
+                photoCtx.fillStyle = '#f4f4f4'; 
                 photoCtx.fillRect(0, 0, photoCanvas.width, photoCanvas.height);
                 photoCtx.strokeStyle = '#ccc';
                 photoCtx.strokeRect(0, 0, photoCanvas.width, photoCanvas.height);
@@ -609,7 +629,6 @@ HTML_TEMPLATE = """
                 const rect = sigCanvas.getBoundingClientRect();
                 sigCanvas.width = rect.width;
                 sigCanvas.height = rect.height;
-                // Ajuste de cor da assinatura para ser visível no dark mode e no pdf (verde escuro funciona bem em ambos)
                 sigCtx.strokeStyle = "#263318"; 
                 sigCtx.lineWidth = 2;
             }
