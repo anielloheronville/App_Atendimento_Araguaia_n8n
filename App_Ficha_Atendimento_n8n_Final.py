@@ -503,6 +503,13 @@ HTML_TEMPLATE = """
                 const element = document.getElementById('fichaContainer');
                 const pdfHeader = document.getElementById('pdfHeader');
 
+                // CAPTURAR NOME E FORMATAR
+                let nomeCliente = document.getElementById('nome').value.trim();
+                if (!nomeCliente) nomeCliente = "Sem_Nome";
+                // Substituir espaços por "_" e remover caracteres especiais
+                const nomeFormatado = nomeCliente.replace(/[^a-zA-Z0-9À-ÿ ]/g, "").replace(/\s+/g, "_");
+                const nomeArquivo = `Ficha_Atendimento_Araguaia_${nomeFormatado}.pdf`;
+
                 btnPdf.innerText = "Gerando...";
                 btnPdf.disabled = true;
 
@@ -516,8 +523,8 @@ HTML_TEMPLATE = """
 
                 // 2. Configurações para garantir 1 página
                 const opt = {
-                    margin:       [5, 5, 5, 5], // Margens mínimas
-                    filename:     'Ficha_Atendimento_Araguaia.pdf',
+                    margin:       [5, 5, 5, 5], 
+                    filename:     nomeArquivo, // NOME DINÂMICO AQUI
                     image:        { type: 'jpeg', quality: 0.95 },
                     html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
                     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -728,12 +735,15 @@ HTML_TEMPLATE = """
     </script>
 </body>
 </html>
+
 """
 
 # --- AUXILIARES ---
 def formatar_telefone_n8n(telefone_bruto):
     try:
+        # Remove tudo que não é dígito
         numeros = ''.join(filter(str.isdigit, telefone_bruto))
+        # Se tiver 10 ou 11 dígitos, adiciona o +55
         if 10 <= len(numeros) <= 11:
             return f"+55{numeros}"
         return None
@@ -743,6 +753,7 @@ def formatar_telefone_n8n(telefone_bruto):
 # --- ROTAS ---
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    # --- PROCESSAMENTO DO FORMULÁRIO (POST) ---
     if request.method == 'POST':
         if not DATABASE_URL:
             return jsonify({'success': False, 'message': 'Banco de dados não configurado.'}), 500
@@ -750,28 +761,39 @@ def index():
         try:
             data = request.json
             
+            # Validações Básicas
             nome = data.get('nome')
             cidade = data.get('cidade')
             telefone_formatado = formatar_telefone_n8n(data.get('telefone'))
             
             if not telefone_formatado:
-                return jsonify({'success': False, 'message': 'Telefone inválido.'}), 400
+                return jsonify({'success': False, 'message': 'Telefone inválido. Use (XX) XXXXX-XXXX'}), 400
             if not nome or not cidade:
                 return jsonify({'success': False, 'message': 'Nome e Cidade são obrigatórios.'}), 400
 
+            # Captura dos campos
             rede_social = data.get('rede_social')
             abordagem_inicial = data.get('abordagem_inicial')
             loteamento = data.get('loteamento')
             comprou_1o_lote = data.get('comprou_1o_lote')
             nivel_interesse = data.get('nivel_interesse')
+            
+            # Tratamento de Booleanos (vem como bool ou 0/1 do JS)
             esteve_plantao = data.get('esteve_plantao') == 1
             foi_atendido = data.get('foi_atendido') == 1
-            nome_corretor = data.get('nome_corretor') if foi_atendido else None
             autoriza_transmissao = data.get('autoriza_transmissao') == 1
+            
+            # Corretor só é salvo se "foi_atendido" for verdadeiro
+            nome_corretor = data.get('nome_corretor') if foi_atendido else None
+            
+            # Imagens (Base64)
             foto_cliente_base64 = data.get('foto_cliente_base64')
             assinatura_base64 = data.get('assinatura_base64')
+            
+            # Timestamp atual (UTC)
             data_hora = datetime.datetime.now(datetime.timezone.utc)
 
+            # --- INSERÇÃO NO BANCO DE DADOS ---
             insert_query = '''
                 INSERT INTO atendimentos (
                     data_hora, nome, telefone, rede_social, abordagem_inicial, 
@@ -796,8 +818,9 @@ def index():
                     if result:
                         ticket_id = result[0]
             
-            logger.info(f"Ficha salva ID: {ticket_id}")
+            logger.info(f"✅ Ficha salva com sucesso! ID: {ticket_id}")
 
+            # --- ENVIO PARA N8N (WEBHOOK) ---
             if N8N_WEBHOOK_URL:
                 try:
                     payload = {
@@ -809,19 +832,29 @@ def index():
                         "comprou_1o_lote": comprou_1o_lote,
                         "nivel_interesse": nivel_interesse,
                         "nome_corretor": nome_corretor,
-                        "timestamp": str(data_hora)
+                        "timestamp": str(data_hora),
+                        "link_foto": "A foto está salva no banco de dados (Base64)", # Opcional: ajustar se quiser enviar o base64
+                        "origem": "App Ficha Digital"
                     }
+                    # Timeout curto para não travar a UI do usuário
                     requests.post(N8N_WEBHOOK_URL, json=payload, timeout=3)
                 except Exception as e_n8n:
-                    logger.warning(f"Erro N8N: {e_n8n}")
+                    logger.warning(f"⚠️ Erro ao acionar N8N: {e_n8n}")
             
-            return jsonify({'success': True, 'message': 'Sucesso!'})
+            return jsonify({'success': True, 'message': 'Ficha salva com sucesso!'})
 
         except Exception as e:
-            logger.error(f"Erro POST: {e}")
-            return jsonify({'success': False, 'message': str(e)}), 500
+            logger.error(f"❌ Erro no processamento POST: {e}")
+            return jsonify({'success': False, 'message': f"Erro interno: {str(e)}"}), 500
 
-    return render_template_string(HTML_TEMPLATE, empreendimentos=OPCOES_EMPREENDIMENTOS, corretores=OPCOES_CORRETORES)
+    # --- RENDERIZAÇÃO DA PÁGINA (GET) ---
+    return render_template_string(
+        HTML_TEMPLATE, 
+        empreendimentos=OPCOES_EMPREENDIMENTOS, 
+        corretores=OPCOES_CORRETORES
+    )
 
+# --- EXECUÇÃO ---
 if __name__ == '__main__':
+    # Porta padrão 5000, escutando em todos os IPs
     app.run(host='0.0.0.0', port=5000, debug=True)
