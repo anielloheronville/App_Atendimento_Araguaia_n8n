@@ -50,7 +50,7 @@ OPCOES_EMPREENDIMENTOS = [
     "Outro / Não Listado"
 ]
 
-# --- LISTA DE CORRETORES (Do Excel) ---
+# --- LISTA DE CORRETORES ---
 OPCOES_CORRETORES = [
     "4083 - NEURA.T.PAVAN SINIGAGLIA",
     "2796 - PEDRO LAERTE RABECINI",
@@ -107,33 +107,26 @@ def init_db():
         loteamento TEXT
     )
     '''
-
     migrations = [
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS comprou_1o_lote TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nivel_interesse TEXT;"
     ]
-
     try:
         conn = psycopg2.connect(DATABASE_URL)
         conn.autocommit = True
         cursor = conn.cursor()
-
         cursor.execute(create_table_query)
-        
         for migration in migrations:
             try:
                 cursor.execute(migration)
             except Exception:
                 pass 
-
         cursor.close()
         conn.close()
         logger.info("✅ Banco de dados atualizado e pronto.")
-
     except Exception as e:
         logger.error(f"❌ Erro crítico ao inicializar Banco de Dados: {e}")
 
-# --- INICIALIZA O BANCO ---
 init_db()
 
 # --- TEMPLATE HTML ---
@@ -169,6 +162,7 @@ HTML_TEMPLATE = """
             border-radius: 0.75rem;
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
             border: 1px solid var(--cor-borda);
+            transition: all 0.3s ease;
         }
 
         .logo-text {
@@ -212,10 +206,7 @@ HTML_TEMPLATE = """
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
-        .btn-salvar:hover { 
-            background-color: #7ab82e; 
-            transform: translateY(-1px);
-        }
+        .btn-salvar:hover { background-color: #7ab82e; transform: translateY(-1px); }
         .btn-salvar:disabled { opacity: 0.6; cursor: not-allowed; }
 
         .btn-pdf {
@@ -230,10 +221,7 @@ HTML_TEMPLATE = """
             letter-spacing: 0.05em;
             margin-right: 10px;
         }
-        .btn-pdf:hover {
-            background-color: #f0f0f0;
-            transform: translateY(-1px);
-        }
+        .btn-pdf:hover { background-color: #f0f0f0; transform: translateY(-1px); }
 
         .signature-canvas, .photo-canvas, .video-preview {
             border: 2px dashed var(--cor-borda);
@@ -247,6 +235,45 @@ HTML_TEMPLATE = """
             text-decoration: underline;
             cursor: pointer;
         }
+
+        /* --- ESTILOS ESPECÍFICOS PARA O MODO PDF (FUNDO BRANCO) --- */
+        .pdf-mode {
+            background-color: #ffffff !important;
+            border: 2px solid #263318 !important;
+            box-shadow: none !important;
+            color: #000000 !important;
+            padding: 20px !important;
+        }
+        
+        .pdf-mode h1, .pdf-mode h2 {
+            color: #263318 !important; /* Mantém verde da marca no título */
+            text-shadow: none !important;
+        }
+        
+        .pdf-mode label, .pdf-mode span, .pdf-mode p {
+            color: #000000 !important;
+            font-weight: bold !important;
+        }
+
+        .pdf-mode .form-input, 
+        .pdf-mode .form-textarea, 
+        .pdf-mode .form-select {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            border: 1px solid #999 !important;
+            box-shadow: none !important;
+        }
+
+        .pdf-mode .logo-text { color: #263318 !important; }
+        
+        /* Ajuste para canvas no PDF */
+        .pdf-mode canvas {
+            border: 1px solid #000 !important;
+            background-color: #fff !important;
+        }
+        
+        /* Ocultar placeholders de inputs vazios no PDF se desejar, ou manter */
+        .pdf-mode ::placeholder { color: #ccc; }
 
         .hidden { display: none; }
     </style>
@@ -265,6 +292,11 @@ HTML_TEMPLATE = """
     <main class="flex-grow flex items-center justify-center p-4">
         <div id="fichaContainer" class="form-container w-full max-w-4xl mx-auto p-6 md:p-10">
             
+            <div id="pdfHeader" class="hidden text-center mb-6">
+                <h1 class="text-3xl font-bold text-[#263318]">FICHA DE ATENDIMENTO</h1>
+                <hr class="border-[#8cc63f] my-2">
+            </div>
+
             <form id="preAtendimentoForm" class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                 
                 <div class="flex flex-col gap-5">
@@ -317,7 +349,7 @@ HTML_TEMPLATE = """
 
                 <div class="flex flex-col gap-5">
                     
-                    <div class="p-4 rounded-lg bg-black/20 border border-white/10">
+                    <div class="p-4 rounded-lg bg-black/20 border border-white/10" id="photoContainer">
                         <label class="block text-sm font-semibold mb-3 text-white">Foto do Cliente</label>
                         <div class="flex flex-col items-center gap-3">
                             <div class="relative">
@@ -442,31 +474,46 @@ HTML_TEMPLATE = """
             atendidoSim.addEventListener('change', toggleCorretor);
             atendidoNao.addEventListener('change', toggleCorretor);
 
-            // --- GERAÇÃO DE PDF ---
+            // --- GERAÇÃO DE PDF (CONFIGURADO PARA FUNDO BRANCO) ---
             document.getElementById('btnGerarPDF').addEventListener('click', function() {
                 const btnPdf = this;
                 const originalText = btnPdf.innerText;
+                const element = document.getElementById('fichaContainer');
+                const pdfHeader = document.getElementById('pdfHeader');
+
                 btnPdf.innerText = "Gerando...";
                 btnPdf.disabled = true;
 
-                // Ocultar elementos indesejados no PDF (usando classe auxiliar ou style direto)
+                // 1. Preparar o ambiente para PDF (Modo Impressão)
+                element.classList.add('pdf-mode'); // Ativa o CSS de fundo branco
+                pdfHeader.classList.remove('hidden'); // Mostra título interno
+                
+                // Ocultar botões
                 const botoes = document.querySelectorAll('.btn-area button, .btn-acao-secundaria');
                 botoes.forEach(b => b.style.opacity = '0');
 
-                const element = document.getElementById('fichaContainer');
-                
-                // Opções do PDF
+                // 2. Configurações do html2pdf
                 const opt = {
-                    margin:       [5, 5, 5, 5],
+                    margin:       [10, 10, 10, 10],
                     filename:     'Ficha_Atendimento_Araguaia.pdf',
                     image:        { type: 'jpeg', quality: 0.98 },
-                    html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#324221' }, // Cor de fundo garantida
+                    // html2canvas configurado para branco e escala menor para caber melhor
+                    html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
                     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
                 };
 
-                // Gerar e Salvar
+                // 3. Gerar e Salvar
                 html2pdf().set(opt).from(element).save().then(function(){
-                    // Restaurar botões
+                    // 4. Restaurar o layout original (Modo Dark)
+                    element.classList.remove('pdf-mode');
+                    pdfHeader.classList.add('hidden');
+                    botoes.forEach(b => b.style.opacity = '1');
+                    btnPdf.innerText = originalText;
+                    btnPdf.disabled = false;
+                }).catch(function(err) {
+                    alert("Erro ao gerar PDF: " + err);
+                    element.classList.remove('pdf-mode');
+                    pdfHeader.classList.add('hidden');
                     botoes.forEach(b => b.style.opacity = '1');
                     btnPdf.innerText = originalText;
                     btnPdf.disabled = false;
@@ -486,8 +533,11 @@ HTML_TEMPLATE = """
             let currentFacingMode = 'environment'; 
 
             function drawPlaceholder() {
-                photoCtx.fillStyle = '#324221';
+                // Desenha placeholder neutro
+                photoCtx.fillStyle = '#f4f4f4'; // Fundo claro para o placeholder
                 photoCtx.fillRect(0, 0, photoCanvas.width, photoCanvas.height);
+                photoCtx.strokeStyle = '#ccc';
+                photoCtx.strokeRect(0, 0, photoCanvas.width, photoCanvas.height);
                 photoCtx.fillStyle = '#8cc63f';
                 photoCtx.beginPath();
                 photoCtx.arc(photoCanvas.width/2, photoCanvas.height/2 - 10, 20, 0, Math.PI*2);
@@ -559,7 +609,8 @@ HTML_TEMPLATE = """
                 const rect = sigCanvas.getBoundingClientRect();
                 sigCanvas.width = rect.width;
                 sigCanvas.height = rect.height;
-                sigCtx.strokeStyle = "#8cc63f";
+                // Ajuste de cor da assinatura para ser visível no dark mode e no pdf (verde escuro funciona bem em ambos)
+                sigCtx.strokeStyle = "#263318"; 
                 sigCtx.lineWidth = 2;
             }
             window.addEventListener('resize', resizeCanvas);
