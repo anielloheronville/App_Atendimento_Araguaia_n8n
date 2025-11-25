@@ -806,16 +806,10 @@ def avaliar_atendimento():
       - ticket_id + nota
       - telefone + nota (telefone vindo do WhatsApp, ex.: WaId 5566...)
 
-    Fluxo:
-      1. Lê o payload (JSON, form ou query).
-      2. Valida e converte 'nota' para int entre 1 e 5.
-      3. Se houver ticket_id, atualiza direto.
-      4. Se não houver ticket_id mas houver telefone, normaliza o telefone
-         para o formato +55 + DDD + número (como está gravado na tabela)
-         e tenta:
-             a) match exato
-             b) fallback pelos últimos 8 dígitos
-      5. Atualiza nota_atendimento na tabela atendimentos.
+    Lógica para telefone:
+      1. Normaliza telefone vindo do WhatsApp para só dígitos.
+      2. Se começar com 55 e tiver mais que 11 dígitos, remove o 55.
+      3. Usa os ÚLTIMOS 8 DÍGITOS para encontrar o atendimento mais recente.
     """
     if not DATABASE_URL:
         return jsonify({'success': False, 'message': 'DB não configurado.'}), 500
@@ -829,7 +823,7 @@ def avaliar_atendimento():
             return jsonify({'success': False, 'message': 'Nenhum dado recebido na requisição.'}), 400
 
         ticket_id = data.get('ticket_id')
-        telefone_bruto = data.get('telefone')  # vindo do n8n (WaId ou DDD+numero)
+        telefone_bruto = data.get('telefone')
         nota = data.get('nota')
 
         # ============================
@@ -849,24 +843,20 @@ def avaliar_atendimento():
         if nota_int < 1:
             nota_int = 1
 
-        # ============================
-        # Conexão e atualização no DB
-        # ============================
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cursor:
 
-                # -------------------------------------------------
+                # --------------------------------------------
                 # Se NÃO vier ticket_id, tenta localizar por telefone
-                # -------------------------------------------------
+                # --------------------------------------------
                 if not ticket_id and telefone_bruto:
                     nums = ''.join(filter(str.isdigit, str(telefone_bruto)))
                     if not nums:
                         return jsonify({'success': False, 'message': 'Telefone inválido.'}), 400
 
-                    # Se vier em formato WAID (55 + DDD + número), remove o 55
-                    # e normaliza para o mesmo padrão da ficha: +55 + DDD + número
+                    # Remove DDI 55 se vier como WAID (55 + DDD + número)
                     if nums.startswith('55') and len(nums) > 11:
-                        nacional = nums[2:]  # tira o 55
+                        nacional = nums[2:]
                         logger.info(f"📱 WAID recebido: {nums} | Nacional: {nacional}")
                     else:
                         nacional = nums
@@ -875,40 +865,21 @@ def avaliar_atendimento():
                     if len(nacional) < 8:
                         return jsonify({'success': False, 'message': 'Telefone muito curto.'}), 400
 
-                    telefone_formatado = f"+55{nacional}"
-                    logger.info(f"🔍 Tentando match exato para telefone: {telefone_formatado}")
+                    ultimos = nacional[-8:]
+                    logger.info(f"🔍 Buscando atendimento pelos últimos 8 dígitos: %{ultimos}")
 
-                    # 1ª tentativa: match exato
+                    # ATENDIMENTO MAIS RECENTE CUJO TELEFONE TERMINA COM ESSES 8 DÍGITOS
                     cursor.execute(
                         """
-                        SELECT id 
-                        FROM atendimentos 
-                        WHERE telefone = %s
-                        ORDER BY data_hora DESC 
+                        SELECT id
+                        FROM atendimentos
+                        WHERE telefone LIKE %s
+                        ORDER BY data_hora DESC
                         LIMIT 1
                         """,
-                        (telefone_formatado,)
+                        (f"%{ultimos}",)
                     )
                     row = cursor.fetchone()
-
-                    # 2ª tentativa (fallback): últimos 8 dígitos
-                    if not row:
-                        ultimos = nacional[-8:]
-                        logger.info(
-                            f"🔁 Fallback por últimos 8 dígitos: %{ultimos} "
-                            f"(telefone banco LIKE '%{ultimos}')"
-                        )
-                        cursor.execute(
-                            """
-                            SELECT id
-                            FROM atendimentos
-                            WHERE telefone LIKE %s
-                            ORDER BY data_hora DESC
-                            LIMIT 1
-                            """,
-                            (f"%{ultimos}",)
-                        )
-                        row = cursor.fetchone()
 
                     if row:
                         ticket_id = row[0]
@@ -928,9 +899,9 @@ def avaliar_atendimento():
                         'message': 'Atendimento não encontrado (sem ID e sem Telefone correspondente).'
                     }), 404
 
-                # -------------------------------------------------
+                # --------------------------------------------
                 # Atualiza a nota do atendimento pelo ticket_id
-                # -------------------------------------------------
+                # --------------------------------------------
                 cursor.execute(
                     """
                     UPDATE atendimentos 
@@ -965,6 +936,7 @@ def avaliar_atendimento():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
 
 
 
