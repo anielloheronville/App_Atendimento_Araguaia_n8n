@@ -788,6 +788,8 @@ def index():
 # --- NOVA ROTA PARA O BOT (WEBHOOK DE AVALIAÇÃO) ---
 # ... (Mantenha o resto do código igual, mude apenas a função abaixo)
 
+# ... (Mantenha os imports e o resto do código igual)
+
 @app.route('/avaliar', methods=['POST'])
 def avaliar_atendimento():
     if not DATABASE_URL:
@@ -796,42 +798,66 @@ def avaliar_atendimento():
     try:
         data = request.json
         ticket_id = data.get('ticket_id')
+        telefone_bruto = data.get('telefone') # NOVO CAMPO
         nota = data.get('nota')
-
-        if not ticket_id or nota is None: 
-            return jsonify({'success': False, 'message': 'Ticket ID e Nota são obrigatórios.'}), 400
-
+        
+        # 1. Validação da Nota
+        if nota is None:
+            return jsonify({'success': False, 'message': 'Nota é obrigatória.'}), 400
+        
         try:
             nota_int = int(nota)
-            
-            # --- AJUSTE ESCALA 1 a 5 ---
-            if nota_int > 5:
-                nota_int = 5  # Trava de segurança: Teto é 5
-            if nota_int < 1:
-                nota_int = 1  # Trava de segurança: Piso é 1 (opcional, se quiser permitir 0 mude aqui)
-            # ---------------------------
-
+            if nota_int > 5: nota_int = 5
+            if nota_int < 1: nota_int = 1
         except ValueError:
-            return jsonify({'success': False, 'message': 'Nota deve ser um número inteiro.'}), 400
+            return jsonify({'success': False, 'message': 'Nota deve ser um número.'}), 400
 
-        update_query = '''
-            UPDATE atendimentos 
-            SET nota_atendimento = %s
-            WHERE id = %s
-        '''
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+
+        # 2. Se não veio ID, tenta achar pelo Telefone (Último atendimento)
+        if not ticket_id and telefone_bruto:
+            # Limpa o telefone para o formato do banco (apenas números com +55)
+            # Ex: whatsapp:+55669999... -> +55669999...
+            nums = ''.join(filter(str.isdigit, str(telefone_bruto)))
+            if len(nums) > 0:
+                # Garante que começa com 55 se não tiver
+                if not nums.startswith('55'):
+                    nums = '55' + nums
+                telefone_formatado = f"+{nums}" 
+                
+                # Busca o ID mais recente deste telefone
+                cursor.execute("""
+                    SELECT id FROM atendimentos 
+                    WHERE telefone = %s 
+                    ORDER BY id DESC LIMIT 1
+                """, (telefone_formatado,))
+                result = cursor.fetchone()
+                
+                if result:
+                    ticket_id = result[0]
+                    logger.info(f"🔍 Recuperado Ticket ID {ticket_id} pelo telefone {telefone_formatado}")
+
+        # 3. Se ainda não temos Ticket ID, desiste
+        if not ticket_id:
+             cursor.close()
+             conn.close()
+             return jsonify({'success': False, 'message': 'Não foi possível identificar o cliente (sem ID e sem Telefone válido).'}), 404
+
+        # 4. Atualiza a nota
+        update_query = 'UPDATE atendimentos SET nota_atendimento = %s WHERE id = %s'
+        cursor.execute(update_query, (nota_int, ticket_id))
+        rows_updated = cursor.rowcount
+        conn.commit() # SALVA DE VERDADE
         
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(update_query, (nota_int, ticket_id))
-                rows_updated = cursor.rowcount
-            conn.commit() 
+        cursor.close()
+        conn.close()
         
         if rows_updated > 0:
-            logger.info(f"✅ Avaliação recebida para Ticket {ticket_id}: Nota {nota_int}")
+            logger.info(f"✅ Avaliação Salva! Ticket: {ticket_id} | Nota: {nota_int}")
             return jsonify({'success': True, 'message': 'Avaliação salva!'})
         else:
-            logger.warning(f"⚠️ Ticket ID {ticket_id} não encontrado para avaliação.")
-            return jsonify({'success': False, 'message': 'Ticket ID não encontrado.'}), 404
+            return jsonify({'success': False, 'message': 'Ticket ID não encontrado no UPDATE.'}), 404
 
     except Exception as e:
         logger.error(f"❌ Erro na avaliação: {e}")
@@ -839,5 +865,6 @@ def avaliar_atendimento():
         
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
 
 
