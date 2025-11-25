@@ -13,37 +13,84 @@ logger = logging.getLogger(__name__)
 # --- Configuração da Aplicação ---
 app = Flask(__name__)
 
+def to_bool_flag(value):
+    """Converte valores vindos do front/n8n (0/1, '0'/'1', 'true'/'false', 'sim'/'não') em booleano.
+
+    Qualquer coisa considerada 'ligada' (1, '1', 'true', 'True', 'sim', 'Sim') vira True.
+    Todo o resto vira False.
+    """
+    if value is None:
+        return False
+    value_str = str(value).strip().lower()
+    return value_str in ('1', 'true', 'sim', 'yes')
+
 # --- CONFIGURAÇÕES DE PRODUÇÃO (RENDER) ---
 N8N_WEBHOOK_URL = os.environ.get("N8N_WEBHOOK_URL")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 # --- LISTA DE EMPREENDIMENTOS (Dropdown) ---
 OPCOES_EMPREENDIMENTOS = [
-    "Jardim dos Ipês", "Jardim Amazônia ET. 3", "Jardim Amazônia ET. 4", "Jardim Amazônia ET. 5",
-    "Jardim Paulista", "Jardim Mato Grosso", "Jardim Florencia", "Benjamim Rossato",
-    "Santa Felicidade", "Amazon Park", "Santa Fé", "Colina Verde", "Res. Terra de Santa Cruz",
-    "Consórcio Gran Ville", "Consórcio Parque Cerrado", "Consórcio Recanto da Mata",
-    "Jardim Vila Rica", "Jardim Amazônia Et. I", "Jardim Amazônia Et. II",
-    "Loteamento Luxemburgo", "Loteamento Jardim Vila Bella", "Morada do Boque III",
-    "Reserva Jardim", "Residencial Cidade Jardim", "Residencial Florais da Mata",
-    "Residencial Jardim Imigrantes", "Residencial Vila Rica", "Residencial Vila Rica SINOP",
+    "Jardim dos Ipês",
+    "Jardim Amazônia ET. 3",
+    "Jardim Amazônia ET. 4",
+    "Jardim Amazônia ET. 5",
+    "Jardim Paulista",
+    "Jardim Mato Grosso",
+    "Jardim Florencia",
+    "Benjamim Rossato",
+    "Santa Felicidade",
+    "Amazon Park",
+    "Santa Fé",
+    "Colina Verde",
+    "Res. Terra de Santa Cruz",
+    "Consórcio Gran Ville",
+    "Consórcio Parque Cerrado",
+    "Consórcio Recanto da Mata",
+    "Jardim Vila Rica",
+    "Jardim Amazônia Et. I",
+    "Jardim Amazônia Et. II",
+    "Loteamento Luxemburgo",
+    "Loteamento Jardim Vila Bella",
+    "Morada do Boque III",
+    "Reserva Jardim",
+    "Residencial Cidade Jardim",
+    "Residencial Florais da Mata",
+    "Residencial Jardim Imigrantes",
+    "Residencial Vila Rica",
+    "Residencial Vila Rica SINOP",
     "Outro / Não Listado"
 ]
 
 # --- LISTA DE CORRETORES ---
 OPCOES_CORRETORES = [
-    "4083 - NEURA.T.PAVAN SINIGAGLIA", "2796 - PEDRO LAERTE RABECINI", "57 - Santos e Padilha Ltda - ME",
+    "4083 - NEURA.T.PAVAN SINIGAGLIA",
+    "2796 - PEDRO LAERTE RABECINI",
+    "57 - Santos e Padilha Ltda - ME",
     "1376 - VALMIR MARIO TOMASI - SEGALA EMPREENDIMENTOS IMOBILIARIOS EIRELI",
-    "1768 - SEGALA EMPREENDIMENTOS IMOBILIARIOS EIRELI", "2436 - PAULO EDUARDO GONCALVES DIAS",
-    "2447 - GLAUBER BENEDITO FIGUEIREDO DE PINHO", "4476 - Priscila Canhet da Silveira",
-    "1531 - Walmir de Oliveira Queiroz", "4704 - MAYCON JEAN CAMPOS", "4084 - JAIMIR COMPAGNONI",
-    "4096 - THAYANE APARECIDA BORGES 09648795908", "4160 - SIMONE VALQUIRIA BELLO OLIVEIRA",
-    "4587 - GABRIEL GALVÃO LOURENÃ‡O EMPREENDIMENTOS LTDA", "4802 - CESAR AUGUSTO PORTELA DA FONSECA JUNIOR LTDA",
-    "4868 - LENE ENGLER DA SILVA", "4087 - JOHNNY MIRANDA OJEDA 47447583120",
-    "4531 - MG EMPREENDIMENTOS LTDA (MAIKON WILLIAN CHUSTA)", "4587 - GABRIEL GALVAO LOURENÃ‡O EMPREENDIMENTOS LTDA",
-    "4826 - JEVIELI BELLO OLIVEIRA", "4825 - EVA VITORIA GALVAO LOURENCO", "54 - Ronaldo Padilha dos Santos",
-    "1137 - Moacir Blemer Olivoto", "4872 - WQ CORRETORES LTDA (WALMIR QUEIROZ)", "720 - Luciane Bocchi ME",
-    "5154 - FELIPE JOSE MOREIRA ALMEIDA", "3063 - SILVANA SEGALA", "2377 - Paulo Eduardo GonÃ§alves Dias",
+    "1768 - SEGALA EMPREENDIMENTOS IMOBILIARIOS EIRELI",
+    "2436 - PAULO EDUARDO GONCALVES DIAS",
+    "2447 - GLAUBER BENEDITO FIGUEIREDO DE PINHO",
+    "4476 - Priscila Canhet da Silveira",
+    "1531 - Walmir de Oliveira Queiroz",
+    "4704 - MAYCON JEAN CAMPOS",
+    "4084 - JAIMIR COMPAGNONI",
+    "4096 - THAYANE APARECIDA BORGES 09648795908",
+    "4160 - SIMONE VALQUIRIA BELLO OLIVEIRA",
+    "4587 - GABRIEL GALVÃO LOURENÃ‡O EMPREENDIMENTOS LTDA",
+    "4802 - CESAR AUGUSTO PORTELA DA FONSECA JUNIOR LTDA",
+    "4868 - LENE ENGLER DA SILVA",
+    "4087 - JOHNNY MIRANDA OJEDA 47447583120",
+    "4531 - MG EMPREENDIMENTOS LTDA (MAIKON WILLIAN CHUSTA)",
+    "4587 - GABRIEL GALVAO LOURENÃ‡O EMPREENDIMENTOS LTDA",
+    "4826 - JEVIELI BELLO OLIVEIRA",
+    "4825 - EVA VITORIA GALVAO LOURENCO",
+    "54 - Ronaldo Padilha dos Santos",
+    "1137 - Moacir Blemer Olivoto",
+    "4872 - WQ CORRETORES LTDA (WALMIR QUEIROZ)",
+    "720 - Luciane Bocchi ME",
+    "5154 - FELIPE JOSE MOREIRA ALMEIDA",
+    "3063 - SILVANA SEGALA",
+    "2377 - Paulo Eduardo GonÃ§alves Dias",
     "Outro / Não Listado"
 ]
 
@@ -71,6 +118,7 @@ def init_db():
         loteamento TEXT
     )
     '''
+    # ADICIONEI A COLUNA nota_atendimento AQUI
     migrations = [
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS comprou_1o_lote TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nivel_interesse TEXT;",
@@ -94,179 +142,7 @@ def init_db():
 
 init_db()
 
-# --- AUXILIARES ---
-def formatar_telefone_n8n(telefone_bruto):
-    try:
-        numeros = ''.join(filter(str.isdigit, telefone_bruto))
-        if 10 <= len(numeros) <= 11:
-            return f"+55{numeros}"
-        return None
-    except:
-        return None
-
-# --- ROTAS ---
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        if not DATABASE_URL:
-            return jsonify({'success': False, 'message': 'Banco de dados não configurado.'}), 500
-
-        try:
-            data = request.json
-            
-            nome = data.get('nome')
-            cidade = data.get('cidade')
-            telefone_formatado = formatar_telefone_n8n(data.get('telefone'))
-            
-            if not telefone_formatado:
-                return jsonify({'success': False, 'message': 'Telefone inválido. Use (XX) XXXXX-XXXX'}), 400
-            if not nome or not cidade:
-                return jsonify({'success': False, 'message': 'Nome e Cidade são obrigatórios.'}), 400
-
-            rede_social = data.get('rede_social')
-            abordagem_inicial = data.get('abordagem_inicial')
-            loteamento = data.get('loteamento')
-            comprou_1o_lote = data.get('comprou_1o_lote')
-            nivel_interesse = data.get('nivel_interesse')
-            
-            esteve_plantao = data.get('esteve_plantao') == 1
-            foi_atendido = data.get('foi_atendido') == 1
-            autoriza_transmissao = data.get('autoriza_transmissao') == 1
-            nome_corretor = data.get('nome_corretor') if foi_atendido else None
-            
-            foto_cliente_base64 = data.get('foto_cliente_base64')
-            assinatura_base64 = data.get('assinatura_base64')
-            data_hora = datetime.datetime.now(datetime.timezone.utc)
-
-            insert_query = '''
-                INSERT INTO atendimentos (
-                    data_hora, nome, telefone, rede_social, abordagem_inicial, 
-                    esteve_plantao, foi_atendido, nome_corretor, autoriza_transmissao, 
-                    foto_cliente, assinatura,
-                    cidade, loteamento, comprou_1o_lote, nivel_interesse
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            '''
-            values = (
-                data_hora, nome, telefone_formatado, rede_social, abordagem_inicial,
-                esteve_plantao, foi_atendido, nome_corretor, autoriza_transmissao,
-                foto_cliente_base64, assinatura_base64,
-                cidade, loteamento, comprou_1o_lote, nivel_interesse
-            )
-            
-            ticket_id = None
-            with psycopg2.connect(DATABASE_URL) as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(insert_query, values)
-                    result = cursor.fetchone()
-                    conn.commit() # <--- IMPORTANTE: ISSO ESTAVA FALTANDO PARA SALVAR DE FATO
-                    if result:
-                        ticket_id = result[0]
-            
-            logger.info(f"✅ Ficha salva com sucesso! ID: {ticket_id}")
-
-            if N8N_WEBHOOK_URL:
-                try:
-                    payload = {
-                        "ticket_id": ticket_id,
-                        "nome": nome,
-                        "telefone": telefone_formatado,
-                        "cidade": cidade,
-                        "loteamento": loteamento,
-                        "comprou_1o_lote": comprou_1o_lote,
-                        "nivel_interesse": nivel_interesse,
-                        "nome_corretor": nome_corretor,
-                        "timestamp": str(data_hora),
-                        "origem": "App Ficha Digital"
-                    }
-                    requests.post(N8N_WEBHOOK_URL, json=payload, timeout=3)
-                except Exception as e_n8n:
-                    logger.warning(f"⚠️ Erro ao acionar N8N: {e_n8n}")
-            
-            return jsonify({'success': True, 'message': 'Ficha salva com sucesso!'})
-
-        except Exception as e:
-            logger.error(f"❌ Erro no processamento POST: {e}")
-            return jsonify({'success': False, 'message': f"Erro interno: {str(e)}"}), 500
-
-    return render_template_string(HTML_TEMPLATE, empreendimentos=OPCOES_EMPREENDIMENTOS, corretores=OPCOES_CORRETORES)
-
-
-# --- ROTA DE AVALIAÇÃO INTELIGENTE (CORRIGIDA E ROBUSTA) ---
-@app.route('/avaliar', methods=['POST'])
-def avaliar_atendimento():
-    if not DATABASE_URL:
-        return jsonify({'success': False, 'message': 'DB não configurado.'}), 500
-
-    try:
-        data = request.json
-        ticket_id = data.get('ticket_id')
-        telefone_bruto = data.get('telefone') # n8n deve enviar isso
-        nota = data.get('nota')
-
-        # VALIDAÇÃO DA NOTA
-        if nota is None:
-             return jsonify({'success': False, 'message': 'Nota é obrigatória.'}), 400
-        try:
-            nota_int = int(nota)
-            if nota_int > 5: nota_int = 5
-            if nota_int < 1: nota_int = 1
-        except ValueError:
-            return jsonify({'success': False, 'message': 'Nota deve ser um número inteiro.'}), 400
-
-        conn = psycopg2.connect(DATABASE_URL)
-        cursor = conn.cursor()
-
-        # BUSCA INTELIGENTE: Se não tem ID, procura pelo Telefone
-        if not ticket_id and telefone_bruto:
-            # Limpa o telefone para o formato padrão (+55...)
-            nums = ''.join(filter(str.isdigit, str(telefone_bruto)))
-            if len(nums) > 0:
-                if not nums.startswith('55'): nums = '55' + nums
-                telefone_formatado = f"+{nums}"
-                
-                logger.info(f"🔍 Buscando atendimento para telefone: {telefone_formatado}")
-                
-                # Pega o ÚLTIMO atendimento desse telefone
-                cursor.execute("""
-                    SELECT id FROM atendimentos 
-                    WHERE telefone = %s 
-                    ORDER BY id DESC LIMIT 1
-                """, (telefone_formatado,))
-                result = cursor.fetchone()
-                
-                if result:
-                    ticket_id = result[0]
-                    logger.info(f"✅ Encontrado Ticket ID {ticket_id} para o telefone {telefone_formatado}")
-                else:
-                    logger.warning(f"⚠️ Nenhum atendimento encontrado para {telefone_formatado}")
-
-        if not ticket_id:
-            cursor.close()
-            conn.close()
-            return jsonify({'success': False, 'message': 'Atendimento não encontrado (sem ID e sem Telefone correspondente).'}), 404
-
-        # ATUALIZAÇÃO NO BANCO
-        update_query = 'UPDATE atendimentos SET nota_atendimento = %s WHERE id = %s'
-        cursor.execute(update_query, (nota_int, ticket_id))
-        rows_updated = cursor.rowcount
-        conn.commit() # SALVAR ALTERAÇÃO
-        
-        cursor.close()
-        conn.close()
-        
-        if rows_updated > 0:
-            logger.info(f"🎉 Avaliação salva com sucesso! Ticket {ticket_id} = Nota {nota_int}")
-            return jsonify({'success': True, 'message': 'Avaliação salva!'})
-        else:
-            return jsonify({'success': False, 'message': 'Erro ao atualizar registro.'}), 404
-
-    except Exception as e:
-        logger.error(f"❌ Erro na avaliação: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# (SEU HTML COMPLETO ABAIXO)
+# --- TEMPLATE HTML ---
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -817,6 +693,166 @@ HTML_TEMPLATE = """
 </body>
 </html>
 """
+
+# --- AUXILIARES ---
+def formatar_telefone_n8n(telefone_bruto):
+    try:
+        numeros = ''.join(filter(str.isdigit, telefone_bruto))
+        if 10 <= len(numeros) <= 11:
+            return f"+55{numeros}"
+        return None
+    except:
+        return None
+
+# --- ROTAS ---
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    # --- PROCESSAMENTO DO FORMULÁRIO (POST) ---
+    if request.method == 'POST':
+        if not DATABASE_URL:
+            return jsonify({'success': False, 'message': 'Banco de dados não configurado.'}), 500
+
+        try:
+            data = request.json
+            
+            nome = data.get('nome')
+            cidade = data.get('cidade')
+            telefone_formatado = formatar_telefone_n8n(data.get('telefone'))
+            
+            if not telefone_formatado:
+                return jsonify({'success': False, 'message': 'Telefone inválido. Use (XX) XXXXX-XXXX'}), 400
+            if not nome or not cidade:
+                return jsonify({'success': False, 'message': 'Nome e Cidade são obrigatórios.'}), 400
+
+            rede_social = data.get('rede_social')
+            abordagem_inicial = data.get('abordagem_inicial')
+            loteamento = data.get('loteamento')
+            comprou_1o_lote = data.get('comprou_1o_lote')
+            nivel_interesse = data.get('nivel_interesse')
+            
+            esteve_plantao = to_bool_flag(data.get('esteve_plantao'))
+            foi_atendido = to_bool_flag(data.get('foi_atendido'))
+            autoriza_transmissao = to_bool_flag(data.get('autoriza_transmissao'))
+            nome_corretor = data.get('nome_corretor') if foi_atendido else None
+            
+            foto_cliente_base64 = data.get('foto_cliente_base64')
+            assinatura_base64 = data.get('assinatura_base64')
+            data_hora = datetime.datetime.now(datetime.timezone.utc)
+
+            insert_query = '''
+                INSERT INTO atendimentos (
+                    data_hora, nome, telefone, rede_social, abordagem_inicial, 
+                    esteve_plantao, foi_atendido, nome_corretor, autoriza_transmissao, 
+                    foto_cliente, assinatura,
+                    cidade, loteamento, comprou_1o_lote, nivel_interesse
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            '''
+            values = (
+                data_hora, nome, telefone_formatado, rede_social, abordagem_inicial,
+                esteve_plantao, foi_atendido, nome_corretor, autoriza_transmissao,
+                foto_cliente_base64, assinatura_base64,
+                cidade, loteamento, comprou_1o_lote, nivel_interesse
+            )
+            
+            ticket_id = None
+            with psycopg2.connect(DATABASE_URL) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(insert_query, values)
+                    result = cursor.fetchone()
+                    if result:
+                        ticket_id = result[0]
+            
+            logger.info(f"✅ Ficha salva com sucesso! ID: {ticket_id}")
+
+            # --- ENVIO PARA N8N (WEBHOOK) ---
+            if N8N_WEBHOOK_URL:
+                try:
+                    payload = {
+                        "ticket_id": ticket_id,
+                        "nome": nome,
+                        "telefone": telefone_formatado,
+                        "cidade": cidade,
+                        "loteamento": loteamento,
+                        "comprou_1o_lote": comprou_1o_lote,
+                        "nivel_interesse": nivel_interesse,
+                        "nome_corretor": nome_corretor,
+                        "timestamp": str(data_hora),
+                        "origem": "App Ficha Digital"
+                    }
+                    requests.post(N8N_WEBHOOK_URL, json=payload, timeout=3)
+                except Exception as e_n8n:
+                    logger.warning(f"⚠️ Erro ao acionar N8N: {e_n8n}")
+            
+            return jsonify({'success': True, 'message': 'Ficha salva com sucesso!'})
+
+        except Exception as e:
+            logger.error(f"❌ Erro no processamento POST: {e}")
+            return jsonify({'success': False, 'message': f"Erro interno: {str(e)}"}), 500
+
+    return render_template_string(
+        HTML_TEMPLATE, 
+        empreendimentos=OPCOES_EMPREENDIMENTOS, 
+        corretores=OPCOES_CORRETORES
+    )
+
+# --- NOVA ROTA PARA O BOT (WEBHOOK DE AVALIAÇÃO) ---
+@app.route('/avaliar', methods=['POST'])
+def avaliar_atendimento():
+    """Endpoint chamado pelo fluxo do bot/n8n para registrar a nota do atendimento.
+
+    Aceita tanto JSON (application/json) quanto form-data/x-www-form-urlencoded.
+    Espera receber pelo menos:
+        - ticket_id: ID do atendimento (coluna id da tabela atendimentos)
+        - nota: nota inteira dada pelo cliente
+    """
+    if not DATABASE_URL:
+        return jsonify({'success': False, 'message': 'DB não configurado.'}), 500
+
+    try:
+        # Tenta obter o payload como JSON; se não vier, tenta como form ou querystring
+        data = request.get_json(silent=True) or request.form.to_dict() or request.args.to_dict()
+        logger.info(f"📩 /avaliar - payload recebido: {data}")
+
+        if not data:
+            return jsonify({'success': False, 'message': 'Nenhum dado recebido no corpo da requisição.'}), 400
+
+        ticket_id = data.get('ticket_id')
+        nota = data.get('nota')
+
+        # ticket_id pode vir como string; apenas checamos se está preenchido
+        if not ticket_id or nota is None:  # nota is None permite nota 0 se necessário
+            return jsonify({'success': False, 'message': 'Ticket ID e Nota são obrigatórios.'}), 400
+
+        # Força conversão para int (aceita strings como "10")
+        try:
+            nota_int = int(str(nota).strip())
+        except ValueError:
+            return jsonify({'success': False, 'message': 'Nota deve ser um número inteiro.'}), 400
+
+        update_query = '''
+            UPDATE atendimentos 
+            SET nota_atendimento = %s
+            WHERE id = %s
+        '''
+
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(update_query, (nota_int, ticket_id))
+                rows_updated = cursor.rowcount
+            conn.commit()  # SALVA A ALTERAÇÃO
+
+        if rows_updated > 0:
+            logger.info(f"✅ Avaliação recebida para Ticket {ticket_id}: Nota {nota_int}")
+            return jsonify({'success': True, 'message': 'Avaliação salva!'})
+        else:
+            logger.warning(f"⚠️ Ticket ID {ticket_id} não encontrado para avaliação.")
+            return jsonify({'success': False, 'message': 'Ticket ID não encontrado.'}), 404
+
+    except Exception as e:
+        logger.error(f"❌ Erro na avaliação: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
