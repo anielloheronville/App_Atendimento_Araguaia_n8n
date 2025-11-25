@@ -38,28 +38,8 @@ OPCOES_EMPREENDIMENTOS = [
     "Jardim Vila Rica",
     "Jardim Amazônia Et. I",
     "Jardim Amazônia Et. II",
-    "Residencial Vila Rica Sinop",
-    "Outros" "Jardim dos Ipês",
-    "Jardim Amazônia ET. 3",
-    "Jardim Amazônia ET. 4",
-    "Jardim Amazônia ET. 5",
-    "Jardim Paulista",
-    "Jardim Mato Grosso",
-    "Jardim Florencia",
-    "Benjamim Rossato",
-    "Santa Felicidade",
-    "Amazon Park",
-    "Santa Fé",
-    "Colina Verde",
-    "Res. Terra de Santa Cruz",
-    "Consórcio Gran Ville"
-    "Consórcio Parque Cerrado",
-    "Consórcio Recanto da Mata",
-    "Jardim Vila Rica",
-    "Jardim Amazônia Et. I",
-    "Jardim Amazônia Et. II",
     "Loteamento Luxemburgo",
-    "Loteamento Jardim Vila Bella"
+    "Loteamento Jardim Vila Bella",
     "Morada do Boque III",
     "Reserva Jardim",
     "Residencial Cidade Jardim",
@@ -164,10 +144,9 @@ HTML_TEMPLATE = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Araguaia Imóveis - Ficha Digital</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Fonte Montserrat -->
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     
     <style>
         :root {
@@ -239,6 +218,23 @@ HTML_TEMPLATE = """
         }
         .btn-salvar:disabled { opacity: 0.6; cursor: not-allowed; }
 
+        .btn-pdf {
+            background-color: #ffffff;
+            color: #263318;
+            font-weight: 700;
+            padding: 0.85rem 1.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-right: 10px;
+        }
+        .btn-pdf:hover {
+            background-color: #f0f0f0;
+            transform: translateY(-1px);
+        }
+
         .signature-canvas, .photo-canvas, .video-preview {
             border: 2px dashed var(--cor-borda);
             border-radius: 0.5rem;
@@ -257,7 +253,6 @@ HTML_TEMPLATE = """
 </head>
 <body class="flex flex-col min-h-screen">
     
-    <!-- CABEÇALHO -->
     <header class="w-full p-6 text-center">
         <h1 class="text-4xl md:text-5xl logo-text text-white">Araguaia</h1>
         <h2 class="text-xl md:text-2xl font-semibold text-white mt-1">Imóveis</h2>
@@ -268,11 +263,10 @@ HTML_TEMPLATE = """
     </header>
 
     <main class="flex-grow flex items-center justify-center p-4">
-        <div class="form-container w-full max-w-4xl mx-auto p-6 md:p-10">
+        <div id="fichaContainer" class="form-container w-full max-w-4xl mx-auto p-6 md:p-10">
             
             <form id="preAtendimentoForm" class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                 
-                <!-- COLUNA 1 -->
                 <div class="flex flex-col gap-5">
                     <div>
                         <label for="nome" class="block text-sm font-semibold mb-2 text-white">Nome do Cliente*</label>
@@ -321,10 +315,8 @@ HTML_TEMPLATE = """
                     </div>
                 </div>
 
-                <!-- COLUNA 2 -->
                 <div class="flex flex-col gap-5">
                     
-                    <!-- FOTO -->
                     <div class="p-4 rounded-lg bg-black/20 border border-white/10">
                         <label class="block text-sm font-semibold mb-3 text-white">Foto do Cliente</label>
                         <div class="flex flex-col items-center gap-3">
@@ -333,7 +325,7 @@ HTML_TEMPLATE = """
                                 <video id="videoPreview" class="video-preview w-32 h-32 rounded-full object-cover hidden" autoplay playsinline></video>
                             </div>
                             
-                            <div class="flex flex-wrap justify-center gap-2">
+                            <div class="flex flex-wrap justify-center gap-2" data-html2canvas-ignore="true">
                                 <button type="button" id="startWebcam" class="text-xs bg-gray-700 text-white px-3 py-2 rounded hover:bg-gray-600 font-semibold uppercase">
                                     📷 Abrir Câmera
                                 </button>
@@ -368,7 +360,6 @@ HTML_TEMPLATE = """
                             </div>
                         </div>
                         
-                        <!-- CAMPO CORRETOR (Dropdown Condicional) -->
                         <div id="campoNomeCorretor" class="hidden animate-fade-in p-3 bg-[#8cc63f]/10 border border-[#8cc63f] rounded-md">
                             <label for="nome_corretor" class="block text-sm font-bold mb-1 text-[#8cc63f]">Selecione o Corretor:</label>
                             <select id="nome_corretor" name="nome_corretor" class="form-select font-semibold">
@@ -398,13 +389,18 @@ HTML_TEMPLATE = """
                     <label class="block text-sm font-semibold mb-2 text-white">Assinatura do Cliente</label>
                     <canvas id="signatureCanvas" class="signature-canvas w-full h-32 cursor-crosshair"></canvas>
                     <input type="hidden" id="assinatura_base64" name="assinatura_base64">
-                    <div class="flex justify-end mt-1">
+                    <div class="flex justify-end mt-1" data-html2canvas-ignore="true">
                         <button type="button" id="clearSignature" class="btn-acao-secundaria">Limpar Assinatura</button>
                     </div>
                 </div>
 
-                <div class="md:col-span-2 flex flex-col md:flex-row justify-between items-center gap-6 mt-4">
-                    <span class="text-sm font-medium" style="color: var(--cor-texto-cinza);" id="dataAtual">Sorriso/MT</span>
+                <div class="md:col-span-2 flex flex-col md:flex-row justify-end items-center gap-4 mt-4 btn-area">
+                    <span class="text-sm font-medium mr-auto" style="color: var(--cor-texto-cinza);" id="dataAtual">Sorriso/MT</span>
+                    
+                    <button type="button" id="btnGerarPDF" class="btn-pdf w-full md:w-auto shadow-lg">
+                        📄 Baixar Cópia (PDF)
+                    </button>
+
                     <button type="submit" id="saveButton" class="btn-salvar w-full md:w-auto shadow-lg hover:shadow-xl">
                         Salvar Ficha
                     </button>
@@ -445,6 +441,37 @@ HTML_TEMPLATE = """
             }
             atendidoSim.addEventListener('change', toggleCorretor);
             atendidoNao.addEventListener('change', toggleCorretor);
+
+            // --- GERAÇÃO DE PDF ---
+            document.getElementById('btnGerarPDF').addEventListener('click', function() {
+                const btnPdf = this;
+                const originalText = btnPdf.innerText;
+                btnPdf.innerText = "Gerando...";
+                btnPdf.disabled = true;
+
+                // Ocultar elementos indesejados no PDF (usando classe auxiliar ou style direto)
+                const botoes = document.querySelectorAll('.btn-area button, .btn-acao-secundaria');
+                botoes.forEach(b => b.style.opacity = '0');
+
+                const element = document.getElementById('fichaContainer');
+                
+                // Opções do PDF
+                const opt = {
+                    margin:       [5, 5, 5, 5],
+                    filename:     'Ficha_Atendimento_Araguaia.pdf',
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#324221' }, // Cor de fundo garantida
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+
+                // Gerar e Salvar
+                html2pdf().set(opt).from(element).save().then(function(){
+                    // Restaurar botões
+                    botoes.forEach(b => b.style.opacity = '1');
+                    btnPdf.innerText = originalText;
+                    btnPdf.disabled = false;
+                });
+            });
 
             // --- CÂMERA ---
             const video = document.getElementById('videoPreview');
@@ -728,4 +755,3 @@ def index():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
