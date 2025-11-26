@@ -796,146 +796,84 @@ def index():
         corretores=OPCOES_CORRETORES
     )
 
-# --- NOVA ROTA PARA O BOT (WEBHOOK DE AVALIAÇÃO) ---
+# --- NOVA ROTA PARA O BOT (WEBHOOK DE AVALIAÇÃO - VERSÃO INTELIGENTE) ---
 @app.route('/avaliar', methods=['POST'])
 def avaliar_atendimento():
-    """
-    Rota para receber a avaliação do cliente.
-
-    Aceita:
-      - ticket_id + nota
-      - telefone + nota (telefone vindo do WhatsApp, ex.: WaId 5566...)
-
-    Lógica para telefone:
-      1. Normaliza telefone vindo do WhatsApp para só dígitos.
-      2. Se começar com 55 e tiver mais que 11 dígitos, remove o 55.
-      3. Usa os ÚLTIMOS 8 DÍGITOS para encontrar o atendimento mais recente.
-    """
     if not DATABASE_URL:
         return jsonify({'success': False, 'message': 'DB não configurado.'}), 500
 
     try:
-        # Aceita JSON, form-url-encoded e querystring
         data = request.get_json(silent=True) or request.form.to_dict() or request.args.to_dict()
         logger.info(f"📩 /avaliar - payload recebido: {data}")
 
         if not data:
-            return jsonify({'success': False, 'message': 'Nenhum dado recebido na requisição.'}), 400
+            return jsonify({'success': False, 'message': 'Nenhum dado recebido.'}), 400
 
+        # Tenta pegar ID ou Telefone
         ticket_id = data.get('ticket_id')
-        telefone_bruto = data.get('telefone')
+        telefone_raw = data.get('telefone') # O n8n está mandando isso
         nota = data.get('nota')
 
-        # ============================
-        # Validação e parse da nota
-        # ============================
         if nota is None:
             return jsonify({'success': False, 'message': 'Nota é obrigatória.'}), 400
 
         try:
             nota_int = int(str(nota).strip())
         except ValueError:
-            return jsonify({'success': False, 'message': 'Nota deve ser um número inteiro.'}), 400
+            return jsonify({'success': False, 'message': 'Nota deve ser um número.'}), 400
 
-        # Garante limite entre 1 e 5
-        if nota_int > 5:
-            nota_int = 5
-        if nota_int < 1:
-            nota_int = 1
+        conn = psycopg2.connect(DATABASE_URL)
+        conn.autocommit = True
+        cursor = conn.cursor()
 
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cursor:
+        # CENÁRIO 1: Se veio o ticket_id, usa ele direto (mais rápido)
+        if ticket_id:
+            cursor.execute('UPDATE atendimentos SET nota_atendimento = %s WHERE id = %s', (nota_int, ticket_id))
+            rows = cursor.rowcount
+            
+        # CENÁRIO 2: Se veio SÓ o telefone (caso do seu n8n), busca o último atendimento desse número
+        elif telefone_raw:
+            # Limpa o telefone para garantir match (pega os últimos 8 dígitos para garantir)
+            # Ex: Se o banco tem +5566... e o n8n manda 5566..., o LIKE resolve
+            numeros = ''.join(filter(str.isdigit, str(telefone_raw)))
+            busca_tel = f"%{numeros[-8:]}" # Pega os ultimos 8 digitos para buscar
+            
+            # Busca o ID do atendimento mais recente desse telefone
+            cursor.execute('''
+                SELECT id FROM atendimentos 
+                WHERE telefone LIKE %s 
+                ORDER BY data_hora DESC 
+                LIMIT 1
+            ''', (busca_tel,))
+            res = cursor.fetchone()
+            
+            if res:
+                ticket_id = res[0]
+                cursor.execute('UPDATE atendimentos SET nota_atendimento = %s WHERE id = %s', (nota_int, ticket_id))
+                rows = cursor.rowcount
+            else:
+                rows = 0
+                logger.warning(f"Nenhum atendimento encontrado para o telefone contendo {busca_tel}")
 
-                # --------------------------------------------
-                # Se NÃO vier ticket_id, tenta localizar por telefone
-                # --------------------------------------------
-                if not ticket_id and telefone_bruto:
-                    nums = ''.join(filter(str.isdigit, str(telefone_bruto)))
-                    if not nums:
-                        return jsonify({'success': False, 'message': 'Telefone inválido.'}), 400
-
-                    # Remove DDI 55 se vier como WAID (55 + DDD + número)
-                    if nums.startswith('55') and len(nums) > 11:
-                        nacional = nums[2:]
-                        logger.info(f"📱 WAID recebido: {nums} | Nacional: {nacional}")
-                    else:
-                        nacional = nums
-                        logger.info(f"📱 Telefone recebido (sem DDI): {nacional}")
-
-                    if len(nacional) < 8:
-                        return jsonify({'success': False, 'message': 'Telefone muito curto.'}), 400
-
-                    ultimos = nacional[-8:]
-                    logger.info(f"🔍 Buscando atendimento pelos últimos 8 dígitos: %{ultimos}")
-
-                    # ATENDIMENTO MAIS RECENTE CUJO TELEFONE TERMINA COM ESSES 8 DÍGITOS
-                    cursor.execute(
-                        """
-                        SELECT id
-                        FROM atendimentos
-                        WHERE telefone LIKE %s
-                        ORDER BY data_hora DESC
-                        LIMIT 1
-                        """,
-                        (f"%{ultimos}",)
-                    )
-                    row = cursor.fetchone()
-
-                    if row:
-                        ticket_id = row[0]
-                        logger.info(f"✅ Atendimento encontrado via telefone. Ticket ID: {ticket_id}")
-                    else:
-                        logger.warning("⚠️ Atendimento não encontrado para o telefone informado.")
-                        return jsonify({
-                            'success': False,
-                            'message': 'Atendimento não encontrado para este telefone.'
-                        }), 404
-
-                # Se ainda não houver ticket_id, não há como atualizar
-                if not ticket_id:
-                    logger.warning("⚠️ Avaliação sem ticket_id e sem telefone correspondente.")
-                    return jsonify({
-                        'success': False,
-                        'message': 'Atendimento não encontrado (sem ID e sem Telefone correspondente).'
-                    }), 404
-
-                # --------------------------------------------
-                # Atualiza a nota do atendimento pelo ticket_id
-                # --------------------------------------------
-                cursor.execute(
-                    """
-                    UPDATE atendimentos 
-                    SET nota_atendimento = %s
-                    WHERE id = %s
-                    """,
-                    (nota_int, ticket_id)
-                )
-                rows_updated = cursor.rowcount
-                conn.commit()
-
-        if rows_updated > 0:
-            logger.info(f"✅ Avaliação salva. Ticket ID: {ticket_id}, Nota: {nota_int}")
-            return jsonify({
-                'success': True,
-                'message': 'Avaliação salva com sucesso!',
-                'ticket_id': ticket_id
-            })
         else:
-            logger.warning(f"⚠️ Atendimento não encontrado para o Ticket ID {ticket_id}.")
-            return jsonify({
-                'success': False,
-                'message': 'Atendimento não encontrado para o Ticket ID informado.'
-            }), 404
+            return jsonify({'success': False, 'message': 'É necessário enviar ticket_id OU telefone.'}), 400
+
+        cursor.close()
+        conn.close()
+
+        if rows > 0:
+            logger.info(f"✅ Avaliação salva! Ticket ID: {ticket_id} - Nota: {nota_int}")
+            return jsonify({'success': True, 'message': 'Avaliação salva!'})
+        else:
+            return jsonify({'success': False, 'message': 'Atendimento não encontrado.'}), 404
 
     except Exception as e:
-        logger.error(f"❌ Erro ao salvar avaliação: {e}")
-        return jsonify({
-            'success': False,
-            'message': 'Erro interno ao salvar a avaliação.'
-        }), 500
+        logger.error(f"❌ Erro na avaliação: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
 
 
 
