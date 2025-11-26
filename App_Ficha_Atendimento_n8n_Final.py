@@ -1,3 +1,4 @@
+import re
 import flask
 from flask import Flask, request, render_template_string, jsonify
 import psycopg2
@@ -796,7 +797,7 @@ def index():
         corretores=OPCOES_CORRETORES
     )
 
-# --- NOVA ROTA PARA O BOT (WEBHOOK DE AVALIAÇÃO - VERSÃO INTELIGENTE) ---
+# --- NOVA ROTA PARA O BOT (WEBHOOK DE AVALIAÇÃO - VERSÃO BLINDADA) ---
 @app.route('/avaliar', methods=['POST'])
 def avaliar_atendimento():
     if not DATABASE_URL:
@@ -811,34 +812,41 @@ def avaliar_atendimento():
 
         # Tenta pegar ID ou Telefone
         ticket_id = data.get('ticket_id')
-        telefone_raw = data.get('telefone') # O n8n está mandando isso
-        nota = data.get('nota')
+        telefone_raw = data.get('telefone') 
+        nota_raw = data.get('nota')
 
-        if nota is None:
-            return jsonify({'success': False, 'message': 'Nota é obrigatória.'}), 400
+        # --- EXTRAÇÃO INTELIGENTE DA NOTA (REGEX) ---
+        # Isso resolve o problema se o n8n mandar "1 - Ruim" ou "Nota 5"
+        if nota_raw is None:
+             return jsonify({'success': False, 'message': 'Nota é obrigatória.'}), 400
+        
+        # Procura o primeiro número que aparecer na string
+        match = re.search(r'\d+', str(nota_raw))
+        if match:
+            nota_int = int(match.group())
+        else:
+            return jsonify({'success': False, 'message': f'Não foi possível identificar um número na nota: {nota_raw}'}), 400
 
-        try:
-            nota_int = int(str(nota).strip())
-        except ValueError:
-            return jsonify({'success': False, 'message': 'Nota deve ser um número.'}), 400
+        # Validação lógica da nota (opcional, mas recomendada)
+        if not (1 <= nota_int <= 5):
+             logger.warning(f"⚠️ Nota fora do padrão recebida: {nota_int}")
 
         conn = psycopg2.connect(DATABASE_URL)
         conn.autocommit = True
         cursor = conn.cursor()
 
-        # CENÁRIO 1: Se veio o ticket_id, usa ele direto (mais rápido)
+        rows = 0
+        # CENÁRIO 1: Se veio o ticket_id
         if ticket_id:
             cursor.execute('UPDATE atendimentos SET nota_atendimento = %s WHERE id = %s', (nota_int, ticket_id))
             rows = cursor.rowcount
             
-        # CENÁRIO 2: Se veio SÓ o telefone (caso do seu n8n), busca o último atendimento desse número
+        # CENÁRIO 2: Se veio SÓ o telefone (Busca Inteligente)
         elif telefone_raw:
-            # Limpa o telefone para garantir match (pega os últimos 8 dígitos para garantir)
-            # Ex: Se o banco tem +5566... e o n8n manda 5566..., o LIKE resolve
             numeros = ''.join(filter(str.isdigit, str(telefone_raw)))
-            busca_tel = f"%{numeros[-8:]}" # Pega os ultimos 8 digitos para buscar
+            # Pega os últimos 8 dígitos para garantir match
+            busca_tel = f"%{numeros[-8:]}" 
             
-            # Busca o ID do atendimento mais recente desse telefone
             cursor.execute('''
                 SELECT id FROM atendimentos 
                 WHERE telefone LIKE %s 
@@ -848,21 +856,17 @@ def avaliar_atendimento():
             res = cursor.fetchone()
             
             if res:
-                ticket_id = res[0]
-                cursor.execute('UPDATE atendimentos SET nota_atendimento = %s WHERE id = %s', (nota_int, ticket_id))
+                db_ticket_id = res[0]
+                cursor.execute('UPDATE atendimentos SET nota_atendimento = %s WHERE id = %s', (nota_int, db_ticket_id))
                 rows = cursor.rowcount
             else:
-                rows = 0
-                logger.warning(f"Nenhum atendimento encontrado para o telefone contendo {busca_tel}")
-
-        else:
-            return jsonify({'success': False, 'message': 'É necessário enviar ticket_id OU telefone.'}), 400
+                logger.warning(f"Nenhum atendimento encontrado para o telefone similar a {busca_tel}")
 
         cursor.close()
         conn.close()
 
         if rows > 0:
-            logger.info(f"✅ Avaliação salva! Ticket ID: {ticket_id} - Nota: {nota_int}")
+            logger.info(f"✅ Avaliação processada! Nota Original: '{nota_raw}' -> Convertida: {nota_int}")
             return jsonify({'success': True, 'message': 'Avaliação salva!'})
         else:
             return jsonify({'success': False, 'message': 'Atendimento não encontrado.'}), 404
@@ -873,6 +877,7 @@ def avaliar_atendimento():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
 
 
 
