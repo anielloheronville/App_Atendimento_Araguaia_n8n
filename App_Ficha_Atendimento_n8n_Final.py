@@ -5,6 +5,7 @@ import os
 import datetime
 import requests
 import logging
+import json
 
 # --- Configuração de Logs ---
 logging.basicConfig(level=logging.INFO)
@@ -15,46 +16,17 @@ app = Flask(__name__)
 
 def to_bool_flag(value):
     """Converte valores vindos do front/n8n para booleano."""
-    if value is None:
-        return False
-    value_str = str(value).strip().lower()
-    return value_str in ('1', 'true', 'sim', 'yes')
+    if value is None: return False
+    return str(value).strip().lower() in ('1', 'true', 'sim', 'yes')
 
 # --- CONFIGURAÇÕES DE PRODUÇÃO (RENDER) ---
 N8N_WEBHOOK_URL = os.environ.get("N8N_WEBHOOK_URL")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# --- LISTA DE EMPREENDIMENTOS (Dropdown) ---
-OPCOES_EMPREENDIMENTOS = [
-    "Jardim dos Ipês", "Jardim Amazônia ET. 3", "Jardim Amazônia ET. 4", 
-    "Jardim Amazônia ET. 5", "Jardim Paulista", "Jardim Mato Grosso", 
-    "Jardim Florencia", "Benjamim Rossato", "Santa Felicidade", "Amazon Park", 
-    "Santa Fé", "Colina Verde", "Res. Terra de Santa Cruz", "Consórcio Gran Ville", 
-    "Consórcio Parque Cerrado", "Consórcio Recanto da Mata", "Jardim Vila Rica", 
-    "Jardim Amazônia Et. I", "Jardim Amazônia Et. II", "Loteamento Luxemburgo", 
-    "Loteamento Jardim Vila Bella", "Morada do Boque III", "Reserva Jardim", 
-    "Residencial Cidade Jardim", "Residencial Florais da Mata", 
-    "Residencial Jardim Imigrantes", "Residencial Vila Rica", 
-    "Residencial Vila Rica SINOP", "Outro / Não Listado"
-]
+# --- LISTAS ---
+OPCOES_EMPREENDIMENTOS = ["Jardim dos Ipês", "Jardim Amazônia ET. 3", "Jardim Amazônia ET. 4", "Jardim Amazônia ET. 5", "Jardim Paulista", "Jardim Mato Grosso", "Jardim Florencia", "Benjamim Rossato", "Santa Felicidade", "Amazon Park", "Santa Fé", "Colina Verde", "Res. Terra de Santa Cruz", "Consórcio Gran Ville", "Consórcio Parque Cerrado", "Consórcio Recanto da Mata", "Jardim Vila Rica", "Jardim Amazônia Et. I", "Jardim Amazônia Et. II", "Loteamento Luxemburgo", "Loteamento Jardim Vila Bella", "Morada do Boque III", "Reserva Jardim", "Residencial Cidade Jardim", "Residencial Florais da Mata", "Residencial Jardim Imigrantes", "Residencial Vila Rica", "Residencial Vila Rica SINOP", "Outro / Não Listado"]
 
-# --- LISTA DE CORRETORES ---
-OPCOES_CORRETORES = [
-    "4083 - NEURA.T.PAVAN SINIGAGLIA", "2796 - PEDRO LAERTE RABECINI", 
-    "57 - Santos e Padilha Ltda - ME", "1376 - VALMIR MARIO TOMASI", 
-    "1768 - SEGALA EMPREENDIMENTOS", "2436 - PAULO EDUARDO GONCALVES DIAS", 
-    "2447 - GLAUBER BENEDITO FIGUEIREDO DE PINHO", "4476 - Priscila Canhet da Silveira", 
-    "1531 - Walmir de Oliveira Queiroz", "4704 - MAYCON JEAN CAMPOS", 
-    "4084 - JAIMIR COMPAGNONI", "4096 - THAYANE APARECIDA BORGES", 
-    "4160 - SIMONE VALQUIRIA BELLO OLIVEIRA", "4587 - GABRIEL GALVÃO LOURENÇO", 
-    "4802 - CESAR AUGUSTO PORTELA DA FONSECA JUNIOR", "4868 - LENE ENGLER DA SILVA", 
-    "4087 - JOHNNY MIRANDA OJEDA", "4531 - MG EMPREENDIMENTOS LTDA", 
-    "4826 - JEVIELI BELLO OLIVEIRA", "4825 - EVA VITORIA GALVAO LOURENCO", 
-    "54 - Ronaldo Padilha dos Santos", "1137 - Moacir Blemer Olivoto", 
-    "4872 - WQ CORRETORES LTDA", "720 - Luciane Bocchi ME", 
-    "5154 - FELIPE JOSE MOREIRA ALMEIDA", "3063 - SILVANA SEGALA", 
-    "2377 - Paulo Eduardo Gonçalves Dias", "Outro / Não Listado"
-]
+OPCOES_CORRETORES = ["4083 - NEURA.T.PAVAN SINIGAGLIA", "2796 - PEDRO LAERTE RABECINI", "57 - Santos e Padilha Ltda - ME", "1376 - VALMIR MARIO TOMASI", "1768 - SEGALA EMPREENDIMENTOS", "2436 - PAULO EDUARDO GONCALVES DIAS", "2447 - GLAUBER BENEDITO FIGUEIREDO DE PINHO", "4476 - Priscila Canhet da Silveira", "1531 - Walmir de Oliveira Queiroz", "4704 - MAYCON JEAN CAMPOS", "4084 - JAIMIR COMPAGNONI", "4096 - THAYANE APARECIDA BORGES", "4160 - SIMONE VALQUIRIA BELLO OLIVEIRA", "4587 - GABRIEL GALVÃO LOURENÇO", "4802 - CESAR AUGUSTO PORTELA DA FONSECA JUNIOR", "4868 - LENE ENGLER DA SILVA", "4087 - JOHNNY MIRANDA OJEDA", "4531 - MG EMPREENDIMENTOS LTDA", "4826 - JEVIELI BELLO OLIVEIRA", "4825 - EVA VITORIA GALVAO LOURENCO", "54 - Ronaldo Padilha dos Santos", "1137 - Moacir Blemer Olivoto", "4872 - WQ CORRETORES LTDA", "720 - Luciane Bocchi ME", "5154 - FELIPE JOSE MOREIRA ALMEIDA", "3063 - SILVANA SEGALA", "2377 - Paulo Eduardo Gonçalves Dias", "Outro / Não Listado"]
 
 # --- BANCO DE DADOS ---
 def init_db():
@@ -80,7 +52,7 @@ def init_db():
         loteamento TEXT
     )
     '''
-    # Migrações
+    # Migrações (Campos novos adicionados ao final: valor_financiamento_pc)
     migrations = [
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS comprou_1o_lote TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nivel_interesse TEXT;",
@@ -191,7 +163,7 @@ HTML_TEMPLATE = """
             transition: all 0.3s ease;
         }
 
-        /* --- Títulos de Seção Estilizados (Tarja Verde com Ícone) --- */
+        /* Títulos de Seção Estilizados (Tarja Verde com Ícone) */
         .section-header {
             width: 100%;
             background-color: var(--cor-acento);
@@ -210,11 +182,7 @@ HTML_TEMPLATE = """
         }
         
         /* SVG Icon styling */
-        .section-icon {
-            width: 1.2em;
-            height: 1.2em;
-            fill: currentColor;
-        }
+        .section-icon { width: 1.2em; height: 1.2em; fill: currentColor; }
 
         .logo-text { font-weight: 800; letter-spacing: -0.05em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
         .logo-line { height: 4px; background-color: var(--cor-acento); width: 100px; margin: 0.5rem auto; border-radius: 2px; }
@@ -294,6 +262,18 @@ HTML_TEMPLATE = """
         }
         .pdf-mode label, .pdf-mode span, .pdf-mode p { color: #000 !important; }
         .pdf-mode .section-icon { fill: #000; }
+        
+        /* Busca Fixa */
+        .search-container {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--cor-borda);
+            border-radius: 0.5rem;
+            padding: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -305,6 +285,15 @@ HTML_TEMPLATE = """
 
     <main class="flex-grow flex items-center justify-center p-4">
         <div id="fichaContainer" class="form-container w-full max-w-4xl mx-auto p-6 md:p-10">
+            
+            <!-- BARRA DE BUSCA RÁPIDA -->
+            <div id="searchBar" class="search-container">
+                <span class="text-[#8cc63f] font-bold text-sm uppercase">Consultar Ficha:</span>
+                <input type="number" id="inputBuscarId" placeholder="ID da Ficha" class="form-input" style="width: 120px; padding: 5px;">
+                <button type="button" id="btnBuscar" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold">🔍 Buscar</button>
+                <div id="infoBusca" class="text-xs text-gray-300 ml-2"></div>
+            </div>
+
             <div id="pdfHeader" class="hidden text-center mb-4">
                 <h1 class="text-3xl font-bold text-[#263318]">FICHA DE ATENDIMENTO / PRÉ-CONTRATO</h1>
                 <hr class="border-[#8cc63f] my-2">
@@ -353,6 +342,7 @@ HTML_TEMPLATE = """
                         <div class="flex flex-col items-center gap-3">
                             <div class="relative">
                                 <canvas id="photoCanvas" class="photo-canvas w-32 h-32 rounded-full object-cover"></canvas>
+                                <img id="loadedPhoto" class="hidden w-32 h-32 rounded-full object-cover border-2 border-[#8cc63f]">
                                 <video id="videoPreview" class="video-preview w-32 h-32 rounded-full object-cover hidden" autoplay playsinline></video>
                             </div>
                             <div class="flex flex-wrap justify-center gap-2" data-html2canvas-ignore="true">
@@ -397,9 +387,7 @@ HTML_TEMPLATE = """
 
                     <!-- 1ª PARTE - DADOS DO IMÓVEL -->
                     <div class="section-header">
-                        <!-- Ícone Casinha -->
-                        <svg class="section-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-                        Dados do Imóvel
+                        <svg class="section-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg> Dados do Imóvel
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
                         <div><label class="block text-xs font-semibold mb-1 text-white">Empreendimento</label><input type="text" name="empreendimento_pc" class="form-input"></div>
@@ -408,7 +396,6 @@ HTML_TEMPLATE = """
                         <div><label class="block text-xs font-semibold mb-1 text-white">M²</label><input type="text" name="m2_pc" class="form-input"></div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-                        <!-- MASK MONEY -->
                         <div><label class="block text-xs font-semibold mb-1 text-white">VL. M²</label><input type="text" name="vl_m2_pc" class="form-input mask-money" inputmode="numeric"></div>
                         <div><label class="block text-xs font-semibold mb-1 text-white">VL. Total</label><input type="text" name="vl_total_pc" class="form-input mask-money" inputmode="numeric"></div>
                         <div class="md:col-span-2"><label class="block text-xs font-semibold mb-1 text-white">Corretor (Opcional)</label><input type="text" id="corretor_pc" class="form-input"></div>
@@ -416,9 +403,7 @@ HTML_TEMPLATE = """
 
                     <!-- 2ª PARTE - FORMA DE PAGAMENTO -->
                     <div class="section-header">
-                         <!-- Ícone Cifrão -->
-                         <svg class="section-icon" viewBox="0 0 24 24"><path d="M12.5 17.5h-4v-1.9c-1.3-.4-2.1-1.4-2.1-2.6 0-1.8 1.5-2.8 3.5-3.1v-2c-.9.1-1.6.5-1.9.9l-1.3-1c.6-.9 1.7-1.5 3.2-1.7V4h1.9v2c1.4.3 2.3 1.4 2.3 2.6 0 1.8-1.5 2.8-3.5 3.1v2.2c1.1-.1 1.9-.6 2.3-1.1l1.3 1c-.6 1.1-1.9 1.9-3.7 2.1v1.6zM10.4 9.1c0 .5.4.9 1.6 1.1v-2c-.9.1-1.6.4-1.6.9zm3.2 5.9c0-.6-.5-1-1.6-1.1v2.1c.9-.1 1.6-.4 1.6-1z"/></svg>
-                        Forma de Pagamento
+                         <svg class="section-icon" viewBox="0 0 24 24"><path d="M12.5 17.5h-4v-1.9c-1.3-.4-2.1-1.4-2.1-2.6 0-1.8 1.5-2.8 3.5-3.1v-2c-.9.1-1.6.5-1.9.9l-1.3-1c.6-.9 1.7-1.5 3.2-1.7V4h1.9v2c1.4.3 2.3 1.4 2.3 2.6 0 1.8-1.5 2.8-3.5 3.1v2.2c1.1-.1 1.9-.6 2.3-1.1l1.3 1c-.6 1.1-1.9 1.9-3.7 2.1v1.6z"/></svg> Forma de Pagamento
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
                         <div class="md:col-span-4">
@@ -449,9 +434,7 @@ HTML_TEMPLATE = """
 
                     <!-- 3ª PARTE - DADOS DO PROPONENTE -->
                     <div class="section-header">
-                        <!-- Ícone Usuário -->
-                        <svg class="section-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                        Dados do Proponente
+                        <svg class="section-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg> Dados do Proponente
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
                         <div class="md:col-span-2"><label class="block text-xs font-semibold mb-1 text-white">Nome</label><input type="text" name="nome_proponente_pc" class="form-input"></div>
@@ -459,7 +442,6 @@ HTML_TEMPLATE = """
                         <div><label class="block text-xs font-semibold mb-1 text-white">Órgão Emissor</label><input type="text" name="orgao_emissor_proponente_pc" class="form-input"></div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                        <!-- MASK CPF -->
                         <div><label class="block text-xs font-semibold mb-1 text-white">CPF</label><input type="tel" name="cpf_proponente_pc" class="form-input mask-cpf" inputmode="numeric"></div>
                         <div><label class="block text-xs font-semibold mb-1 text-white">Estado Civil</label><input type="text" name="estado_civil_pc" class="form-input"></div>
                         <div><label class="block text-xs font-semibold mb-1 text-white">Filhos</label><input type="text" name="filhos_pc" class="form-input"></div>
@@ -490,7 +472,6 @@ HTML_TEMPLATE = """
                             </div>
                         </div>
                         <div>
-                             <!-- NOVO CAMPO VALOR -->
                             <label class="block text-xs font-semibold mb-1 text-white">Valor (R$)</label>
                             <input type="text" name="valor_financiamento_pc" class="form-input mask-money" inputmode="numeric">
                         </div>
@@ -498,9 +479,7 @@ HTML_TEMPLATE = """
 
                     <!-- 4ª PARTE - DADOS PROFISSIONAIS -->
                     <div class="section-header">
-                        <!-- Ícone Maleta -->
-                         <svg class="section-icon" viewBox="0 0 24 24"><path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/></svg>
-                        Dados Profissionais
+                         <svg class="section-icon" viewBox="0 0 24 24"><path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/></svg> Dados Profissionais
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
                         <div class="md:col-span-2"><label class="block text-xs font-semibold mb-1 text-white">Empresa</label><input type="text" name="empresa_trabalha_pc" class="form-input"></div>
@@ -511,9 +490,7 @@ HTML_TEMPLATE = """
 
                     <!-- 5ª PARTE - DADOS DO CÔNJUGE -->
                     <div class="section-header">
-                        <!-- Ícone Coração/Pessoas -->
-                         <svg class="section-icon" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-                        Dados do Cônjuge
+                         <svg class="section-icon" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg> Dados do Cônjuge
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
                         <div class="md:col-span-2"><label class="block text-xs font-semibold mb-1 text-white">Nome</label><input type="text" name="nome_conjuge_pc" class="form-input"></div>
@@ -537,9 +514,7 @@ HTML_TEMPLATE = """
 
                     <!-- 7ª PARTE - REFERÊNCIAS -->
                     <div class="section-header">
-                        <!-- Ícone Grupo -->
-                        <svg class="section-icon" viewBox="0 0 24 24"><path d="M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73V18H6v-1.61c0-1.18.68-2.26 1.76-2.73 1.17-.52 2.61-.91 4.24-.91zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-2.21 0-4 1.79-4 4v2h4v-2c0-.81.25-1.56.64-2.19l.49.29zM19.13 14.1l.49-.29c.39.63.64 1.38.64 2.19v2h4v-2c0-2.21-1.79-4-4-4-.39 0-.76.04-1.13.1zM12 12c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/></svg>
-                        Referências Comerciais e Pessoais
+                        <svg class="section-icon" viewBox="0 0 24 24"><path d="M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73V18H6v-1.61c0-1.18.68-2.26 1.76-2.73 1.17-.52 2.61-.91 4.24-.91zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-2.21 0-4 1.79-4 4v2h4v-2c0-.81.25-1.56.64-2.19l.49.29zM19.13 14.1l.49-.29c.39.63.64 1.38.64 2.19v2h4v-2c0-2.21-1.79-4-4-4-.39 0-.76.04-1.13.1zM12 12c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/></svg> Referências Comerciais e Pessoais
                     </div>
                     <div class="space-y-2 mb-4">
                         {% for i in range(1,6) %}
@@ -552,9 +527,7 @@ HTML_TEMPLATE = """
 
                     <!-- 8ª PARTE - FONTE -->
                     <div class="section-header">
-                        <!-- Ícone Megafone -->
-                        <svg class="section-icon" viewBox="0 0 24 24"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1 9h2v-.5H3v-1h1v-.5H2v-1h3v4H2v-1zm-1-9h2v-.5H2v-1h1v-.5H2v-1h3v4H2v-1zM7 9h2v-.5H7v-1h1v-.5H7v-1h3v4H7v-1zm0 4h2v-.5H7v-1h1v-.5H7v-1h3v4H7v-1zM7 4h2v-.5H7v-1h1v-.5H7v-1h3v4H7v-1zM12 2l-5 5H2v6h5l5 5V2zm0 0"/></svg>
-                        Fonte de Mídia
+                        <svg class="section-icon" viewBox="0 0 24 24"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1 9h2v-.5H3v-1h1v-.5H2v-1h3v4H2v-1zm-1-9h2v-.5H2v-1h1v-.5H2v-1h3v4H2v-1zM7 9h2v-.5H7v-1h1v-.5H7v-1h3v4H7v-1zm0 4h2v-.5H7v-1h1v-.5H7v-1h3v4H7v-1zM7 4h2v-.5H7v-1h1v-.5H7v-1h3v4H7v-1zM12 2l-5 5H2v6h5l5 5V2zm0 0"/></svg> Fonte de Mídia
                     </div>
                     <div class="flex flex-wrap gap-3 mb-4">
                         {% for label, value in [('Placa','Placa'),('Jornal','Jornal'),('Site','Site'),('Outdoor','Outdoor'),('TV','TV'),('Panfleto','Panfleto'),('Indicação','Indicacao'),('Outros','Outros')] %}
@@ -564,9 +537,7 @@ HTML_TEMPLATE = """
 
                     <!-- 9ª PARTE - CONDIÇÕES -->
                     <div class="section-header">
-                        <!-- Ícone Documento -->
-                         <svg class="section-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg>
-                        Condições Gerais
+                         <svg class="section-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg> Condições Gerais
                     </div>
                     <div class="text-[0.7rem] leading-tight text-gray-200 mb-6 text-justify">
                         <p class="mb-2">1. O promitente comprador formaliza a intenção de adquirir o imóvel descrito acima de maneira irrevogável e irretratável...</p>
@@ -594,7 +565,7 @@ HTML_TEMPLATE = """
                 <!-- ASSINATURA DIGITAL -->
                 <div class="md:col-span-2 mt-4">
                     <label class="block text-sm font-semibold mb-2 text-white">Assinatura Digital (Canvas)</label>
-                    <canvas id="signatureCanvas" class="signature-canvas w-full h-32 cursor-crosshair"></canvas>
+                    <canvas id="sigCanvas" class="signature-canvas w-full h-32 cursor-crosshair bg-white/10"></canvas>
                     <input type="hidden" id="assinatura_base64" name="assinatura_base64">
                     <div class="flex justify-end mt-1"><button type="button" id="clearSignature" class="btn-acao-secundaria">Limpar Assinatura</button></div>
                 </div>
@@ -609,27 +580,81 @@ HTML_TEMPLATE = """
     <footer class="w-full p-6 text-center text-xs opacity-50">© 2024 Araguaia Imóveis.</footer>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        $(document).ready(function(){
             
-            // --- INICIALIZAÇÃO DAS MÁSCARAS (jQuery InputMask) ---
-            $(document).ready(function(){
-                $('.mask-phone').inputmask('(99) 99999-9999', { "placeholder": "_" });
-                $('.mask-cpf').inputmask('999.999.999-99', { "placeholder": "_" });
-                // Máscara monetária simples
-                $('.mask-money').inputmask('currency', {
-                    prefix: 'R$ ',
-                    groupSeparator: '.',
-                    alias: 'numeric',
-                    placeholder: '0',
-                    autoGroup: true,
-                    digits: 2,
-                    digitsOptional: false,
-                    clearMaskOnLostFocus: false,
-                    rightAlign: false
-                });
-            });
+            // --- INICIALIZAÇÃO DAS MÁSCARAS ---
+            $('.mask-phone').inputmask('(99) 99999-9999', { "placeholder": "_" });
+            $('.mask-cpf').inputmask('999.999.999-99', { "placeholder": "_" });
+            $('.mask-money').inputmask('currency', {prefix: 'R$ ', groupSeparator: '.', alias: 'numeric', placeholder: '0', autoGroup: true, digits: 2, digitsOptional: false, rightAlign: false});
 
-            const form = document.getElementById('preAtendimentoForm');
+            // --- LÓGICA DE BUSCA DA FICHA (Backend Integration) ---
+            $('#btnBuscar').click(async function(){
+                const idFicha = $('#inputBuscarId').val();
+                if(!idFicha) return Swal.fire('Atenção', 'Digite o ID da ficha para buscar.', 'warning');
+
+                Swal.fire({title: 'Buscando Ficha...', didOpen:()=>{Swal.showLoading()}});
+
+                try {
+                    const resp = await fetch(`/buscar/${idFicha}`);
+                    if(!resp.ok) throw new Error("Ficha não encontrada ou erro no servidor.");
+                    const dados = await resp.json();
+
+                    // Preenche campos de texto e select
+                    $.each(dados, function(key, value) {
+                        if(!value) return;
+                        // Inputs normais
+                        $(`[name="${key}"]`).val(value);
+                        
+                        // Radios
+                        $(`input[name="${key}"][value="${value}"]`).prop('checked', true);
+                        
+                        // Checkboxes (Fonte de Mídia pode ter múltiplos)
+                        if(key === 'fonte_midia_pc'){
+                            const fontes = value.split(', ');
+                            fontes.forEach(f => $(`input[name="fonte_midia_pc"][value="${f}"]`).prop('checked', true));
+                        }
+                        
+                        // Toggle Lógicas
+                        if(key === 'comprou_1o_lote') $('#comprou_1o_lote').change();
+                        if(key === 'foi_atendido' && value === true) { $('#atendido_sim').prop('checked',true); toggleC(); }
+                        if(key === 'esteve_plantao') { value ? $('input[name="esteve_plantao"][value="sim"]').prop('checked',true) : $('input[name="esteve_plantao"][value="nao"]').prop('checked',true); }
+                    });
+
+                    // Referências (Separar string por quebra de linha)
+                    if(dados.referencias_pc) {
+                        const refs = dados.referencias_pc.split('\\n');
+                        refs.forEach((ref, index) => {
+                            if(ref.includes('-')) {
+                                const parts = ref.split(' - ');
+                                $(`[name="ref_nome_${index+1}"]`).val(parts[0].trim());
+                                $(`[name="ref_tel_${index+1}"]`).val(parts[1].trim());
+                            }
+                        });
+                    }
+
+                    // Foto Cliente
+                    if(dados.foto_cliente) {
+                        $('#loadedPhoto').attr('src', dados.foto_cliente).removeClass('hidden');
+                        $('#photoCanvas, #videoPreview').addClass('hidden');
+                        $('#foto_cliente_base64').val(dados.foto_cliente);
+                        $('#clearPhoto').removeClass('hidden');
+                        $('#startWebcam').addClass('hidden');
+                    }
+
+                    // Assinatura (Desenhar no Canvas)
+                    if(dados.assinatura) {
+                        const img = new Image();
+                        img.onload = function() { ctx.drawImage(img, 0, 0); };
+                        img.src = dados.assinatura;
+                        $('#assinatura_base64').val(dados.assinatura);
+                    }
+
+                    Swal.fire({icon: 'success', title: 'Ficha Carregada!', timer: 1500, showConfirmButton: false});
+
+                } catch(err) {
+                    Swal.fire('Erro', err.message, 'error');
+                }
+            });
 
             // Toggle Corretor
             const atSim = document.getElementById('atendido_sim');
@@ -648,118 +673,100 @@ HTML_TEMPLATE = """
             function toggleP() {
                 if(selCompra.value === 'Sim') {
                     secPre.classList.remove('hidden');
-                    // Scroll Suave
-                    setTimeout(() => {
-                        secPre.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 100);
-                }
-                else {
+                    setTimeout(() => { secPre.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+                } else {
                     secPre.classList.add('hidden');
                 }
             }
             selCompra.addEventListener('change', toggleP); 
 
             // Canvas Assinatura
-            const sigCv = document.getElementById('signatureCanvas'); const sigCtx = sigCv.getContext('2d');
+            const cv = document.getElementById('sigCanvas'); const ctx = cv.getContext('2d');
             let drawing=false;
-            function fitSig(){ sigCv.width=sigCv.offsetWidth; sigCv.height=sigCv.offsetHeight; sigCtx.lineWidth=2; sigCtx.strokeStyle="#263318"; }
+            function fitSig(){ cv.width=cv.offsetWidth; cv.height=cv.offsetHeight; ctx.lineWidth=2; ctx.strokeStyle="#fff"; }
             window.addEventListener('resize', fitSig); fitSig();
-            const getPos=(e)=>{const r=sigCv.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top}};
-            sigCv.addEventListener('mousedown',(e)=>{drawing=true;sigCtx.beginPath();sigCtx.moveTo(getPos(e).x,getPos(e).y)});
-            sigCv.addEventListener('mousemove',(e)=>{if(drawing){sigCtx.lineTo(getPos(e).x,getPos(e).y);sigCtx.stroke()}});
-            sigCv.addEventListener('mouseup',()=>drawing=false);
-            sigCv.addEventListener('mouseleave',()=>drawing=false);
-            sigCv.addEventListener('touchstart',(e)=>{drawing=true;sigCtx.beginPath();sigCtx.moveTo(getPos(e).x,getPos(e).y);e.preventDefault()});
-            sigCv.addEventListener('touchmove',(e)=>{if(drawing){sigCtx.lineTo(getPos(e).x,getPos(e).y);sigCtx.stroke();e.preventDefault()}});
-            sigCv.addEventListener('touchend',()=>drawing=false);
-            document.getElementById('clearSignature').addEventListener('click',()=>{sigCtx.clearRect(0,0,sigCv.width,sigCv.height);document.getElementById('assinatura_base64').value=''});
+            const getPos=(e)=>{const r=cv.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top}};
+            cv.addEventListener('mousedown',(e)=>{drawing=true;ctx.beginPath();ctx.moveTo(getPos(e).x,getPos(e).y)});
+            cv.addEventListener('mousemove',(e)=>{if(drawing){ctx.lineTo(getPos(e).x,getPos(e).y);ctx.stroke()}});
+            cv.addEventListener('mouseup',()=>drawing=false);
+            cv.addEventListener('touchstart',(e)=>{drawing=true;ctx.beginPath();ctx.moveTo(getPos(e).x,getPos(e).y);e.preventDefault()});
+            cv.addEventListener('touchmove',(e)=>{if(drawing){ctx.lineTo(getPos(e).x,getPos(e).y);ctx.stroke();e.preventDefault()}});
+            cv.addEventListener('touchend',()=>drawing=false);
+            $('#clearSignature').click(()=>{ ctx.clearRect(0,0,cv.width,cv.height); $('#assinatura_base64').val(''); });
 
             // Camera
-            const vid=document.getElementById('videoPreview'); const photoCv=document.getElementById('photoCanvas'); const phCtx=photoCv.getContext('2d');
-            const fotoInp=document.getElementById('foto_cliente_base64');
-            phCtx.fillStyle='#f4f4f4'; phCtx.fillRect(0,0,photoCv.width,photoCv.height);
-            document.getElementById('startWebcam').addEventListener('click',async()=>{
-                try{vid.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});vid.classList.remove('hidden');photoCv.classList.add('hidden');document.getElementById('takePhoto').classList.remove('hidden');document.getElementById('startWebcam').classList.add('hidden');document.getElementById('clearPhoto').classList.remove('hidden');}catch(e){Swal.fire('Erro', 'Erro ao acessar câmera: '+e, 'error')}
+            const v=document.getElementById('videoPreview'); const p=document.getElementById('photoCanvas'); const pc=p.getContext('2d');
+            $('#startWebcam').click(async()=>{ 
+                try{ v.srcObject = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}); 
+                $(v).removeClass('hidden'); $(p).addClass('hidden'); $('#loadedPhoto').addClass('hidden'); 
+                $('#takePhoto').removeClass('hidden'); $('#startWebcam').addClass('hidden'); $('#clearPhoto').removeClass('hidden'); }catch(e){Swal.fire('Erro', 'Camera: '+e, 'error')} 
             });
-            document.getElementById('takePhoto').addEventListener('click',()=>{
-                photoCv.width=vid.videoWidth;photoCv.height=vid.videoHeight;phCtx.drawImage(vid,0,0);
-                fotoInp.value=photoCv.toDataURL('image/jpeg',0.8);
-                vid.classList.add('hidden');photoCv.classList.remove('hidden');
-                vid.srcObject.getTracks().forEach(t=>t.stop());
-                document.getElementById('takePhoto').classList.add('hidden');document.getElementById('startWebcam').classList.remove('hidden');
+            $('#takePhoto').click(()=>{ 
+                p.width=v.videoWidth; p.height=v.videoHeight; pc.drawImage(v,0,0); 
+                $('#foto_cliente_base64').val(p.toDataURL('image/jpeg', 0.7));
+                $(v).addClass('hidden'); $(p).removeClass('hidden'); 
+                v.srcObject.getTracks().forEach(t=>t.stop());
+                $('#takePhoto').addClass('hidden'); $('#startWebcam').removeClass('hidden');
             });
-            document.getElementById('clearPhoto').addEventListener('click',()=>{
-                fotoInp.value=''; phCtx.clearRect(0,0,photoCv.width,photoCv.height); phCtx.fillStyle='#f4f4f4'; phCtx.fillRect(0,0,photoCv.width,photoCv.height);
-                if(vid.srcObject)vid.srcObject.getTracks().forEach(t=>t.stop());
-                vid.classList.add('hidden');photoCv.classList.remove('hidden');
-                document.getElementById('startWebcam').classList.remove('hidden');document.getElementById('takePhoto').classList.add('hidden');document.getElementById('clearPhoto').classList.add('hidden');
+            $('#clearPhoto').click(()=>{
+                $('#foto_cliente_base64').val(''); pc.clearRect(0,0,p.width,p.height); 
+                $('#loadedPhoto').addClass('hidden').attr('src','');
+                $(v).addClass('hidden'); $(p).removeClass('hidden');
+                $('#startWebcam').removeClass('hidden'); $('#takePhoto').addClass('hidden'); $('#clearPhoto').addClass('hidden');
+                if(v.srcObject) v.srcObject.getTracks().forEach(t=>t.stop());
             });
 
             // PDF
-            document.getElementById('btnGerarPDF').addEventListener('click',()=>{
+            $('#btnGerarPDF').click(()=>{
                 const el=document.getElementById('fichaContainer');
-                document.getElementById('pdfHeader').classList.remove('hidden');
-                el.classList.add('pdf-mode');
-                const btns=document.querySelectorAll('.btn-area button, .btn-acao-secundaria, #photoContainer button');
-                btns.forEach(b=>b.style.display='none');
+                $('#pdfHeader').removeClass('hidden'); $(el).addClass('pdf-mode');
+                // Esconde botões para o PDF
+                $('.btn-area, .search-container, #photoContainer button, #clearSignature').hide();
+                Swal.fire({title:'Gerando PDF...', allowOutsideClick:false, didOpen:()=>{Swal.showLoading()}});
                 
-                // Mostrar alerta de carregamento
-                Swal.fire({title: 'Gerando PDF...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() }});
+                // Pega nome para arquivo
+                let nomeArq = $('#nome').val() || 'Ficha';
+                nomeArq = nomeArq.replace(/[^a-z0-9]/gi, '_').toLowerCase();
 
-                html2pdf().set({margin:5,filename:'Ficha.pdf',image:{type:'jpeg',quality:0.95},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:'a4'}}).from(el).save().then(()=>{
-                    el.classList.remove('pdf-mode'); document.getElementById('pdfHeader').classList.add('hidden');
-                    btns.forEach(b=>b.style.display='');
-                    Swal.close();
+                html2pdf().set({margin:5, filename:`ficha_${nomeArq}.pdf`, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2, useCORS:true}, jsPDF:{unit:'mm',format:'a4'}})
+                .from(el).save().then(()=>{
+                    $(el).removeClass('pdf-mode'); $('#pdfHeader').addClass('hidden');
+                    $('.btn-area, .search-container, #photoContainer button, #clearSignature').show(); Swal.close();
                 });
             });
 
-            // Submit com SweetAlert
-            form.addEventListener('submit', async(e)=>{
+            // Submit
+            $('#preAtendimentoForm').submit(async function(e){
                 e.preventDefault();
-                document.getElementById('assinatura_base64').value=sigCv.toDataURL();
+                $('#assinatura_base64').val(cv.toDataURL());
+                Swal.fire({title:'Salvando...', allowOutsideClick:false, didOpen:()=>{Swal.showLoading()}});
                 
-                // Loading
-                Swal.fire({
-                    title: 'Salvando Ficha...',
-                    html: 'Por favor, aguarde o envio.',
-                    allowOutsideClick: false,
-                    didOpen: () => { Swal.showLoading() }
-                });
+                const fd = new FormData(this); const d = {}; fd.forEach((v,k)=>d[k]=v);
                 
-                const fd=new FormData(form); const d={}; fd.forEach((v,k)=>d[k]=v);
-                
+                // Checkboxes Fonte Midia
+                const fontes = [];
+                $('input[name="fonte_midia_pc"]:checked').each(function(){ fontes.push($(this).val()); });
+                d.fonte_midia_pc = fontes.join(', ');
+
+                // Referencias
                 const refs=[]; for(let i=1;i<=5;i++){ if(d[`ref_nome_${i}`]||d[`ref_tel_${i}`]) refs.push(`${d[`ref_nome_${i}`]} - ${d[`ref_tel_${i}`]}`); }
                 d.referencias_pc=refs.join('\\n');
-                
-                const fontes=fd.getAll('fonte_midia_pc'); d.fonte_midia_pc=fontes.join(', ');
 
-                d.esteve_plantao=(d.esteve_plantao==='sim')?1:0;
-                d.foi_atendido=(d.foi_atendido==='sim')?1:0;
-                d.autoriza_transmissao=(d.autoriza_transmissao==='sim')?1:0;
+                d.esteve_plantao = $('input[name="esteve_plantao"]:checked').val() === 'sim' ? 1 : 0;
+                d.foi_atendido = $('input[name="foi_atendido"]:checked').val() === 'sim' ? 1 : 0;
+                d.autoriza_transmissao = $('input[name="autoriza_transmissao"]:checked').val() === 'sim' ? 1 : 0;
 
-                try{
-                    const r=await fetch('/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
-                    const res=await r.json();
+                try {
+                    const r = await fetch('/', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
+                    const res = await r.json();
                     if(res.success){
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Sucesso!',
-                            text: 'Ficha salva corretamente.',
-                            confirmButtonColor: '#8cc63f'
+                        Swal.fire('Sucesso!', `Ficha Salva! ID: ${res.ticket_id || 'OK'}`, 'success').then(()=>{
+                            // Opcional: recarregar ou limpar. Vamos limpar para novo cadastro.
+                            window.location.reload();
                         });
-                        form.reset(); sigCtx.clearRect(0,0,sigCv.width,sigCv.height);
-                        document.getElementById('clearPhoto').click();
-                        // Esconde a área extra após reset
-                        secPre.classList.add('hidden');
-                        // Scroll topo
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
                     } else throw new Error(res.message);
-                }catch(err){
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Erro',
-                        text: 'Falha ao salvar: ' + err.message
-                    });
+                } catch(err) {
+                    Swal.fire('Erro', err.message, 'error');
                 }
             });
         });
@@ -794,6 +801,7 @@ def index():
             if not telefone or not nome:
                 return jsonify({'success': False, 'message': 'Dados obrigatórios faltando.'}), 400
 
+            # Prepara dados (incluindo o novo campo valor_financiamento_pc)
             campos = {
                 'data_hora': datetime.datetime.now(datetime.timezone.utc),
                 'nome': nome, 'telefone': telefone, 'rede_social': data.get('rede_social'),
@@ -808,6 +816,7 @@ def index():
                 'comprou_1o_lote': data.get('comprou_1o_lote'),
                 'nivel_interesse': data.get('nivel_interesse'),
                 
+                # Campos PC
                 'empreendimento_pc': data.get('empreendimento_pc'),
                 'quadra_pc': data.get('quadra_pc'), 'lote_pc': data.get('lote_pc'),
                 'm2_pc': data.get('m2_pc'), 'vl_m2_pc': data.get('vl_m2_pc'), 'vl_total_pc': data.get('vl_total_pc'),
@@ -852,9 +861,9 @@ def index():
 
             ticket_id = None
             with psycopg2.connect(DATABASE_URL) as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(query, tuple(vals))
-                    ticket_id = cursor.fetchone()[0]
+                with conn.cursor() as cur:
+                    cur.execute(query, tuple(vals))
+                    ticket_id = cur.fetchone()[0]
 
             logger.info(f"✅ Ficha salva no Banco! ID: {ticket_id}")
 
@@ -872,12 +881,45 @@ def index():
                 except Exception as e:
                     logger.warning(f"Erro N8N: {e}")
 
-            return jsonify({'success': True})
+            return jsonify({'success': True, 'ticket_id': ticket_id})
         except Exception as e:
             logger.error(f"Erro POST: {e}")
             return jsonify({'success': False, 'message': str(e)}), 500
 
     return render_template_string(HTML_TEMPLATE, empreendimentos=OPCOES_EMPREENDIMENTOS, corretores=OPCOES_CORRETORES)
+
+# --- ROTA DE BUSCA DE FICHA ---
+@app.route('/buscar/<int:id_ficha>', methods=['GET'])
+def buscar_ficha(id_ficha):
+    if not DATABASE_URL: return jsonify({'error': 'DB não configurado'}), 500
+    try:
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                # Seleciona TUDO
+                cur.execute("SELECT * FROM atendimentos WHERE id = %s", (id_ficha,))
+                
+                # Mapeia colunas para dicionário
+                if cur.description:
+                    columns = [desc[0] for desc in cur.description]
+                    row = cur.fetchone()
+                    
+                    if not row:
+                        return jsonify({}), 404
+                        
+                    data = dict(zip(columns, row))
+                    
+                    # Converte datas e bools para JSON serializable
+                    for k, v in data.items():
+                        if isinstance(v, datetime.datetime):
+                            data[k] = v.isoformat()
+                            
+                    return jsonify(data)
+                
+        return jsonify({}), 404
+        
+    except Exception as e:
+        logger.error(f"Erro Busca: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/avaliar', methods=['POST'])
 def avaliar_atendimento():
