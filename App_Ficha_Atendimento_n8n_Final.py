@@ -52,7 +52,7 @@ def init_db():
         loteamento TEXT
     )
     '''
-    # Migrações (Campos novos adicionados ao final: valor_financiamento_pc)
+    # Migrações
     migrations = [
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS comprou_1o_lote TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nivel_interesse TEXT;",
@@ -75,7 +75,7 @@ def init_db():
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS cpf_proponente_pc TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS estado_civil_pc TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS filhos_pc TEXT;",
-        "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS cep_pc TEXT;",  # NOVO CAMPO
+        "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS cep_pc TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS endereco_pc TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS tel_residencial_pc TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS celular_pc TEXT;",
@@ -267,20 +267,12 @@ HTML_TEMPLATE = """
             border: none !important;
         }
 
-        /* Força textos e labels a ficarem pretos */
-        .pdf-mode label, 
-        .pdf-mode span, 
-        .pdf-mode p, 
-        .pdf-mode h1, .pdf-mode h2, .pdf-mode h3, 
-        .pdf-mode div {
+        .pdf-mode label, .pdf-mode span, .pdf-mode p, .pdf-mode h1, .pdf-mode h2, .pdf-mode h3, .pdf-mode div {
             color: #000000 !important;
             text-shadow: none !important;
         }
 
-        /* Transforma inputs em linhas de texto para leitura */
-        .pdf-mode input, 
-        .pdf-mode textarea, 
-        .pdf-mode select {
+        .pdf-mode input, .pdf-mode textarea, .pdf-mode select {
             background-color: transparent !important;
             border: none !important;
             border-bottom: 1px solid #333 !important;
@@ -291,35 +283,22 @@ HTML_TEMPLATE = """
             font-weight: 600 !important;
         }
 
-        /* Ajusta as bordas das seções para preto no PDF */
-        .pdf-mode .form-container,
-        .pdf-mode .section-header,
-        .pdf-mode #preContratoSection {
+        .pdf-mode .form-container, .pdf-mode .section-header, .pdf-mode #preContratoSection {
             border-color: #000000 !important;
             box-shadow: none !important;
             background-color: transparent !important;
         }
 
-        /* Cabeçalhos de seção cinza claro */
         .pdf-mode .section-header {
             background-color: #e0e0e0 !important;
             color: #000 !important;
             border: 1px solid #000;
         }
 
-        /* Esconde elementos de interface (botões) */
-        .hide-on-pdf {
-            display: none !important;
-        }
+        .hide-on-pdf { display: none !important; }
 
-        /* Garante que blocos não quebrem no meio da página */
-        .pdf-mode .grid, 
-        .pdf-mode .section-header, 
-        .pdf-mode .mb-3 {
-            break-inside: avoid;
-        }
+        .pdf-mode .grid, .pdf-mode .section-header, .pdf-mode .mb-3 { break-inside: avoid; }
 
-        /* Ícones pretos no PDF */
         .pdf-mode .section-icon { fill: #000; }
     </style>
 </head>
@@ -650,7 +629,19 @@ HTML_TEMPLATE = """
 
                     $.each(dados, function(key, value) {
                         if(value === null || value === undefined) return;
-                        $(`[name="${key}"]`).val(value);
+                        
+                        // CORREÇÃO: TRATAMENTO ESPECÍFICO PARA TELEFONE
+                        // Remove o código do país (55) se existir, para caber na máscara do form (31) 9....
+                        if(key === 'telefone') {
+                            let num = value.replace(/\D/g, ''); // Remove tudo que não é número
+                            // Se tiver mais de 11 dígitos e começar com 55, remove o 55 inicial
+                            if(num.startsWith('55') && num.length > 11) {
+                                num = num.substring(2); 
+                            }
+                            $(`[name="${key}"]`).val(num);
+                        } else {
+                            $(`[name="${key}"]`).val(value);
+                        }
                         
                         if (typeof value === 'boolean') {
                             let valStr = value ? 'sim' : 'nao';
@@ -694,8 +685,8 @@ HTML_TEMPLATE = """
                     toggleP(); 
                     toggleC(); 
                     
-                    // Dispara o evento de input para o botão do WhatsApp aparecer se tiver número
-                    $('#telefone').trigger('input');
+                    // --- ATUALIZA BOTÃO WHATSAPP ---
+                    $('#telefone').trigger('input'); 
 
                     Swal.fire({icon: 'success', title: 'Ficha Carregada!', timer: 1500, showConfirmButton: false});
 
@@ -704,7 +695,7 @@ HTML_TEMPLATE = """
                 }
             });
 
-            // --- NOVO: BUSCA DE CEP AUTOMÁTICA ---
+            // --- BUSCA DE CEP AUTOMÁTICA ---
             $('#btnBuscarCep').click(async function(){
                 let cep = $('#cep_busca').val().replace(/\D/g, '');
                 if(cep.length !== 8) return Swal.fire('Erro', 'CEP inválido', 'error');
@@ -728,9 +719,10 @@ HTML_TEMPLATE = """
                 }
             });
 
-            // --- NOVO: BOTÃO WHATSAPP ---
+            // --- BOTÃO WHATSAPP ---
             $('#telefone').on('input', function(){
                 const val = $(this).val().replace(/\D/g, '');
+                // Se tiver 10 ou 11 dígitos (DDD + Numero), mostra o botão
                 if(val.length >= 10) {
                     $('#btnZap').removeClass('hidden');
                 } else {
@@ -812,7 +804,7 @@ HTML_TEMPLATE = """
                 // 1. PREPARAÇÃO VISUAL
                 $(element).addClass('pdf-mode'); 
                 $('#pdfHeader').removeClass('hidden'); 
-                uiElements.addClass('hidden'); // Usa hidden do tailwind ou display none
+                uiElements.addClass('hidden'); 
 
                 // Expande textareas
                 $('textarea').each(function() {
@@ -859,7 +851,7 @@ HTML_TEMPLATE = """
             $('#preAtendimentoForm').submit(async function(e){
                 e.preventDefault();
 
-                // --- NOVO: VALIDAÇÃO VISUAL ---
+                // --- VALIDAÇÃO VISUAL ---
                 let valid = true;
                 $('[required]').each(function(){
                     // Verifica se está visível e vazio
@@ -969,7 +961,7 @@ def index():
                 'cpf_proponente_pc': data.get('cpf_proponente_pc'),
                 'estado_civil_pc': data.get('estado_civil_pc'),
                 'filhos_pc': data.get('filhos_pc'),
-                'cep_pc': data.get('cep_pc'), # NOVO
+                'cep_pc': data.get('cep_pc'),
                 'endereco_pc': data.get('endereco_pc'),
                 'tel_residencial_pc': data.get('tel_residencial_pc'),
                 'celular_pc': data.get('celular_pc'), 'email_pc': data.get('email_pc'),
