@@ -20,7 +20,6 @@ def to_bool_flag(value):
     return str(value).strip().lower() in ('1', 'true', 'sim', 'yes')
 
 # --- CONFIGURAÇÕES DE PRODUÇÃO (RENDER) ---
-# Certifique-se de que estas variáveis de ambiente estão configuradas no seu servidor
 N8N_WEBHOOK_URL = os.environ.get("N8N_WEBHOOK_URL")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -53,7 +52,7 @@ def init_db():
         loteamento TEXT
     )
     '''
-    # Migrações (Garante que colunas novas existam)
+    # Migrações (Campos novos adicionados ao final: valor_financiamento_pc)
     migrations = [
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS comprou_1o_lote TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nivel_interesse TEXT;",
@@ -76,6 +75,7 @@ def init_db():
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS cpf_proponente_pc TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS estado_civil_pc TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS filhos_pc TEXT;",
+        "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS cep_pc TEXT;",  # NOVO CAMPO
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS endereco_pc TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS tel_residencial_pc TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS celular_pc TEXT;",
@@ -159,6 +159,12 @@ HTML_TEMPLATE = """
             transition: all 0.3s ease;
         }
 
+        /* Estilo para erro de validação */
+        .input-error {
+            border-color: #ff4444 !important;
+            box-shadow: 0 0 0 2px rgba(255, 68, 68, 0.2) !important;
+        }
+
         /* Títulos de Seção Estilizados (Tarja Verde com Ícone) */
         .section-header {
             width: 100%;
@@ -227,6 +233,7 @@ HTML_TEMPLATE = """
             border: 2px dashed var(--cor-borda);
             border-radius: 0.5rem;
             background-color: rgba(0,0,0,0.2);
+            touch-action: none; /* BLOQUEIA SCROLL NO MOBILE AO ASSINAR */
         }
 
         .btn-acao-secundaria {
@@ -341,8 +348,14 @@ HTML_TEMPLATE = """
                 <div class="flex flex-col gap-5">
                     <div><label class="block text-sm font-semibold mb-2 text-white">Nome do Cliente*</label><input type="text" id="nome" name="nome" class="form-input" required></div>
                     
-                    <div><label class="block text-sm font-semibold mb-2 text-white">Telefone / WhatsApp*</label>
-                        <input type="tel" id="telefone" name="telefone" class="form-input mask-phone" placeholder="(XX) XXXXX-XXXX" inputmode="tel" required>
+                    <div>
+                        <label class="block text-sm font-semibold mb-2 text-white">Telefone / WhatsApp*</label>
+                        <div class="flex items-center gap-2">
+                            <input type="tel" id="telefone" name="telefone" class="form-input mask-phone" placeholder="(XX) XXXXX-XXXX" inputmode="tel" required>
+                            <button type="button" id="btnZap" class="hide-on-pdf text-[#8cc63f] border border-[#8cc63f] p-2 rounded hover:bg-[#8cc63f] hover:text-[#263318] transition-colors hidden" title="Abrir no WhatsApp">
+                                💬
+                            </button>
+                        </div>
                     </div>
                     
                     <div><label class="block text-sm font-semibold mb-2 text-gray-300">Instagram / Facebook</label><input type="text" id="rede_social" name="rede_social" class="form-input"></div>
@@ -474,8 +487,23 @@ HTML_TEMPLATE = """
                         <div><label class="block text-xs font-semibold mb-1 text-white">Estado Civil</label><input type="text" name="estado_civil_pc" class="form-input"></div>
                         <div><label class="block text-xs font-semibold mb-1 text-white">Filhos</label><input type="text" name="filhos_pc" class="form-input"></div>
                     </div>
+
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                        <div class="md:col-span-2"><label class="block text-xs font-semibold mb-1 text-white">Endereço</label><input type="text" name="endereco_pc" class="form-input"></div>
+                        <div class="md:col-span-2">
+                             <div class="grid grid-cols-3 gap-2">
+                                 <div>
+                                    <label class="block text-xs font-semibold mb-1 text-white">CEP</label>
+                                    <div class="flex gap-2">
+                                        <input type="text" id="cep_busca" name="cep_pc" class="form-input mask-cep" placeholder="00000-000">
+                                        <button type="button" id="btnBuscarCep" class="hide-on-pdf bg-[#8cc63f] text-[#1a2610] px-3 rounded font-bold hover:bg-[#7ab82e] transition">🔎</button>
+                                    </div>
+                                 </div>
+                                 <div class="col-span-2">
+                                     <label class="block text-xs font-semibold mb-1 text-white">Endereço</label>
+                                     <input type="text" name="endereco_pc" class="form-input">
+                                 </div>
+                             </div>
+                        </div>
                         <div><label class="block text-xs font-semibold mb-1 text-white">Tel. Residencial</label><input type="tel" name="tel_residencial_pc" class="form-input mask-phone" inputmode="tel"></div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
@@ -606,6 +634,7 @@ HTML_TEMPLATE = """
             $('.mask-phone').inputmask('(99) 99999-9999', { "placeholder": "_" });
             $('.mask-cpf').inputmask('999.999.999-99', { "placeholder": "_" });
             $('.mask-money').inputmask('currency', {prefix: 'R$ ', groupSeparator: '.', alias: 'numeric', placeholder: '0', autoGroup: true, digits: 2, digitsOptional: false, rightAlign: false});
+            $('.mask-cep').inputmask('99999-999');
 
             // --- LÓGICA DE BUSCA DA FICHA (Backend Integration) ---
             $('#btnBuscar').click(async function(){
@@ -619,13 +648,10 @@ HTML_TEMPLATE = """
                     if(!resp.ok) throw new Error("Ficha não encontrada ou erro no servidor.");
                     const dados = await resp.json();
 
-                    // Preenche campos de texto e select
                     $.each(dados, function(key, value) {
                         if(value === null || value === undefined) return;
-                        // Inputs normais e selects
                         $(`[name="${key}"]`).val(value);
                         
-                        // Radios (conversão bool -> sim/nao)
                         if (typeof value === 'boolean') {
                             let valStr = value ? 'sim' : 'nao';
                             $(`input[name="${key}"][value="${valStr}"]`).prop('checked', true);
@@ -633,14 +659,12 @@ HTML_TEMPLATE = """
                             $(`input[name="${key}"][value="${value}"]`).prop('checked', true);
                         }
                         
-                        // Checkboxes (Fonte de Mídia)
                         if(key === 'fonte_midia_pc'){
                             const fontes = value.split(', ');
                             fontes.forEach(f => $(`input[name="fonte_midia_pc"][value="${f}"]`).prop('checked', true));
                         }
                     });
 
-                    // Referências (Separar string por quebra de linha)
                     if(dados.referencias_pc) {
                         const refs = dados.referencias_pc.split('\\n');
                         refs.forEach((ref, index) => {
@@ -652,7 +676,6 @@ HTML_TEMPLATE = """
                         });
                     }
 
-                    // Foto Cliente
                     if(dados.foto_cliente) {
                         $('#loadedPhoto').attr('src', dados.foto_cliente).removeClass('hidden');
                         $('#photoCanvas, #videoPreview').addClass('hidden');
@@ -661,7 +684,6 @@ HTML_TEMPLATE = """
                         $('#startWebcam').addClass('hidden');
                     }
 
-                    // Assinatura (Desenhar no Canvas)
                     if(dados.assinatura) {
                         const img = new Image();
                         img.onload = function() { ctx.drawImage(img, 0, 0); };
@@ -669,9 +691,11 @@ HTML_TEMPLATE = """
                         $('#assinatura_base64').val(dados.assinatura);
                     }
 
-                    // --- [CORREÇÃO] EXECUTA TOGGLES APÓS CARREGAR DADOS ---
-                    toggleP(); // Abre Pré-Contrato se necessário
-                    toggleC(); // Abre campo Corretor se necessário
+                    toggleP(); 
+                    toggleC(); 
+                    
+                    // Dispara o evento de input para o botão do WhatsApp aparecer se tiver número
+                    $('#telefone').trigger('input');
 
                     Swal.fire({icon: 'success', title: 'Ficha Carregada!', timer: 1500, showConfirmButton: false});
 
@@ -679,6 +703,46 @@ HTML_TEMPLATE = """
                     Swal.fire('Erro', err.message, 'error');
                 }
             });
+
+            // --- NOVO: BUSCA DE CEP AUTOMÁTICA ---
+            $('#btnBuscarCep').click(async function(){
+                let cep = $('#cep_busca').val().replace(/\D/g, '');
+                if(cep.length !== 8) return Swal.fire('Erro', 'CEP inválido', 'error');
+                
+                Swal.fire({title: 'Buscando endereço...', didOpen:()=>{Swal.showLoading()}});
+                
+                try {
+                    const res = await fetch(`https://brasilapi.com.br/api/cep/v1/${cep}`);
+                    if(!res.ok) throw new Error('CEP não encontrado');
+                    const data = await res.json();
+                    
+                    // Preenche Endereço (Rua e Bairro)
+                    $('[name="endereco_pc"]').val(`${data.street}, ${data.neighborhood}`);
+                    
+                    // Preenche Cidade (Se estiver vazia ou for diferente)
+                    $('[name="cidade"]').val(data.city);
+                    
+                    Swal.close();
+                } catch(e) {
+                    Swal.fire('Erro', 'Não foi possível buscar o CEP.', 'error');
+                }
+            });
+
+            // --- NOVO: BOTÃO WHATSAPP ---
+            $('#telefone').on('input', function(){
+                const val = $(this).val().replace(/\D/g, '');
+                if(val.length >= 10) {
+                    $('#btnZap').removeClass('hidden');
+                } else {
+                    $('#btnZap').addClass('hidden');
+                }
+            });
+
+            $('#btnZap').click(function(){
+                const num = $('#telefone').val().replace(/\D/g, '');
+                if(num) window.open(`https://wa.me/55${num}`, '_blank');
+            });
+
 
             // Toggle Corretor
             const atSim = document.getElementById('atendido_sim');
@@ -695,7 +759,6 @@ HTML_TEMPLATE = """
             const selCompra = document.getElementById('comprou_1o_lote');
             const secPre = document.getElementById('preContratoSection');
             function toggleP() {
-                // Checa se tem algum dado de empreendimento PC ou se o select é Sim
                 const temDados = $('[name="empreendimento_pc"]').val() !== '';
                 if(selCompra.value === 'Sim' || temDados) {
                     secPre.classList.remove('hidden');
@@ -741,23 +804,22 @@ HTML_TEMPLATE = """
                 if(v.srcObject) v.srcObject.getTracks().forEach(t=>t.stop());
             });
 
-            // --- [CORREÇÃO] PDF MODO DOCUMENTO ---
+            // PDF
             $('#btnGerarPDF').click(function() {
                 const element = document.getElementById('fichaContainer');
-                const uiElements = $('.btn-area, .search-container, #photoContainer button, #clearSignature, #startWebcam, #takePhoto, #clearPhoto');
+                const uiElements = $('.btn-area, .search-container, #photoContainer button, #clearSignature, #startWebcam, #takePhoto, #clearPhoto, .hide-on-pdf');
                 
                 // 1. PREPARAÇÃO VISUAL
                 $(element).addClass('pdf-mode'); 
                 $('#pdfHeader').removeClass('hidden'); 
-                uiElements.addClass('hide-on-pdf'); 
+                uiElements.addClass('hidden'); // Usa hidden do tailwind ou display none
 
-                // Expande textareas para mostrar todo o texto
+                // Expande textareas
                 $('textarea').each(function() {
                     this.style.height = 'auto';
                     this.style.height = (this.scrollHeight + 5) + 'px';
                 });
 
-                // Garante que o pré-contrato esteja visível no PDF se tiver dados
                 if($('#comprou_1o_lote').val() === 'Sim' || $('[name="empreendimento_pc"]').val()) {
                     $('#preContratoSection').removeClass('hidden');
                 }
@@ -781,7 +843,7 @@ HTML_TEMPLATE = """
                 html2pdf().set(opt).from(element).save().then(function() {
                     $(element).removeClass('pdf-mode');
                     $('#pdfHeader').addClass('hidden');
-                    uiElements.removeClass('hide-on-pdf');
+                    uiElements.removeClass('hidden');
                     $('textarea').css('height', ''); 
                     toggleP(); 
                     Swal.close();
@@ -789,13 +851,31 @@ HTML_TEMPLATE = """
                     console.error(err);
                     Swal.fire('Erro', 'Não foi possível gerar o PDF.', 'error');
                     $(element).removeClass('pdf-mode');
-                    uiElements.removeClass('hide-on-pdf');
+                    uiElements.removeClass('hidden');
                 });
             });
 
             // Submit
             $('#preAtendimentoForm').submit(async function(e){
                 e.preventDefault();
+
+                // --- NOVO: VALIDAÇÃO VISUAL ---
+                let valid = true;
+                $('[required]').each(function(){
+                    // Verifica se está visível e vazio
+                    if($(this).is(':visible') && !$(this).val()){
+                        $(this).addClass('input-error');
+                        valid = false;
+                    } else {
+                        $(this).removeClass('input-error');
+                    }
+                });
+
+                if(!valid) {
+                    Swal.fire('Atenção', 'Preencha os campos obrigatórios destacados em vermelho.', 'warning');
+                    return;
+                }
+
                 $('#assinatura_base64').val(cv.toDataURL());
                 Swal.fire({title:'Salvando...', allowOutsideClick:false, didOpen:()=>{Swal.showLoading()}});
                 
@@ -889,6 +969,7 @@ def index():
                 'cpf_proponente_pc': data.get('cpf_proponente_pc'),
                 'estado_civil_pc': data.get('estado_civil_pc'),
                 'filhos_pc': data.get('filhos_pc'),
+                'cep_pc': data.get('cep_pc'), # NOVO
                 'endereco_pc': data.get('endereco_pc'),
                 'tel_residencial_pc': data.get('tel_residencial_pc'),
                 'celular_pc': data.get('celular_pc'), 'email_pc': data.get('email_pc'),
