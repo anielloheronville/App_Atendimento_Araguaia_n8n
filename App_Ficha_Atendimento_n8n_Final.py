@@ -599,28 +599,30 @@ HTML_TEMPLATE = """
                     if(!resp.ok) throw new Error("Ficha não encontrada ou erro no servidor.");
                     const dados = await resp.json();
 
-                    // Preenche campos de texto e select
+                    // 1. Preenche campos de texto e select
                     $.each(dados, function(key, value) {
-                        if(!value) return;
-                        // Inputs normais
+                        if(value === null || value === undefined) return;
+                        
+                        // Inputs normais e Selects
                         $(`[name="${key}"]`).val(value);
                         
                         // Radios
-                        $(`input[name="${key}"][value="${value}"]`).prop('checked', true);
+                        // Se o valor for booleano (true/false) converte para sim/nao para bater com o radio
+                        if (typeof value === 'boolean') {
+                            let valStr = value ? 'sim' : 'nao';
+                            $(`input[name="${key}"][value="${valStr}"]`).prop('checked', true);
+                        } else {
+                            $(`input[name="${key}"][value="${value}"]`).prop('checked', true);
+                        }
                         
-                        // Checkboxes (Fonte de Mídia pode ter múltiplos)
+                        // Checkboxes (Fonte de Mídia)
                         if(key === 'fonte_midia_pc'){
                             const fontes = value.split(', ');
                             fontes.forEach(f => $(`input[name="fonte_midia_pc"][value="${f}"]`).prop('checked', true));
                         }
-                        
-                        // Toggle Lógicas
-                        if(key === 'comprou_1o_lote') $('#comprou_1o_lote').change();
-                        if(key === 'foi_atendido' && value === true) { $('#atendido_sim').prop('checked',true); toggleC(); }
-                        if(key === 'esteve_plantao') { value ? $('input[name="esteve_plantao"][value="sim"]').prop('checked',true) : $('input[name="esteve_plantao"][value="nao"]').prop('checked',true); }
                     });
 
-                    // Referências (Separar string por quebra de linha)
+                    // 2. Preenche Referências
                     if(dados.referencias_pc) {
                         const refs = dados.referencias_pc.split('\\n');
                         refs.forEach((ref, index) => {
@@ -632,7 +634,7 @@ HTML_TEMPLATE = """
                         });
                     }
 
-                    // Foto Cliente
+                    // 3. Foto Cliente
                     if(dados.foto_cliente) {
                         $('#loadedPhoto').attr('src', dados.foto_cliente).removeClass('hidden');
                         $('#photoCanvas, #videoPreview').addClass('hidden');
@@ -641,13 +643,19 @@ HTML_TEMPLATE = """
                         $('#startWebcam').addClass('hidden');
                     }
 
-                    // Assinatura (Desenhar no Canvas)
+                    // 4. Assinatura
                     if(dados.assinatura) {
                         const img = new Image();
                         img.onload = function() { ctx.drawImage(img, 0, 0); };
                         img.src = dados.assinatura;
                         $('#assinatura_base64').val(dados.assinatura);
                     }
+
+                    // --- CORREÇÃO AQUI ---
+                    // Chamamos as funções de toggle FORA do loop para garantir que
+                    // os valores (.val()) já foram aplicados ao DOM corretamente.
+                    toggleP(); // Verifica se "Comprou 1o lote" é Sim e abre a ficha
+                    toggleC(); // Verifica se "Já possui corretor" e abre o campo corretor
 
                     Swal.fire({icon: 'success', title: 'Ficha Carregada!', timer: 1500, showConfirmButton: false});
 
