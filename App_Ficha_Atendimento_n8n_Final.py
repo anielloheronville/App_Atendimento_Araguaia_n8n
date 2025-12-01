@@ -20,6 +20,7 @@ def to_bool_flag(value):
     return str(value).strip().lower() in ('1', 'true', 'sim', 'yes')
 
 # --- CONFIGURAÇÕES DE PRODUÇÃO (RENDER) ---
+# Certifique-se de que estas variáveis de ambiente estão configuradas no seu servidor
 N8N_WEBHOOK_URL = os.environ.get("N8N_WEBHOOK_URL")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -52,7 +53,7 @@ def init_db():
         loteamento TEXT
     )
     '''
-    # Migrações (Campos novos adicionados ao final: valor_financiamento_pc)
+    # Migrações (Garante que colunas novas existam)
     migrations = [
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS comprou_1o_lote TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nivel_interesse TEXT;",
@@ -127,15 +128,10 @@ HTML_TEMPLATE = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Araguaia Imóveis - Ficha Digital</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Montserrat -->
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
-    <!-- HTML2PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <!-- SweetAlert2 (Alertas Bonitos) -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <!-- jQuery e InputMask (Máscaras de Input) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.8/jquery.inputmask.min.js"></script>
     
@@ -181,7 +177,6 @@ HTML_TEMPLATE = """
             gap: 0.5rem; /* Espaço entre ícone e texto */
         }
         
-        /* SVG Icon styling */
         .section-icon { width: 1.2em; height: 1.2em; fill: currentColor; }
 
         .logo-text { font-weight: 800; letter-spacing: -0.05em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
@@ -242,27 +237,7 @@ HTML_TEMPLATE = """
         }
         
         .hidden { display: none; }
-        
-        /* PDF MODE */
-        .pdf-mode {
-            background-color: #ffffff !important;
-            color: #000000 !important;
-            padding: 20px !important;
-        }
-        .pdf-mode .form-input, .pdf-mode .form-textarea, .pdf-mode .form-select {
-            background-color: #ffffff !important;
-            color: #000000 !important;
-            border: 1px solid #ccc !important;
-        }
-        .pdf-mode .section-header {
-            background-color: #eee !important;
-            color: #000 !important;
-            border: 1px solid #000;
-            box-shadow: none;
-        }
-        .pdf-mode label, .pdf-mode span, .pdf-mode p { color: #000 !important; }
-        .pdf-mode .section-icon { fill: #000; }
-        
+
         /* Busca Fixa */
         .search-container {
             background: rgba(0,0,0,0.3);
@@ -274,6 +249,71 @@ HTML_TEMPLATE = """
             gap: 10px;
             align-items: center;
         }
+
+        /* --- MODO PDF (ESTILO PAPEL) --- */
+        .pdf-mode {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+        }
+
+        /* Força textos e labels a ficarem pretos */
+        .pdf-mode label, 
+        .pdf-mode span, 
+        .pdf-mode p, 
+        .pdf-mode h1, .pdf-mode h2, .pdf-mode h3, 
+        .pdf-mode div {
+            color: #000000 !important;
+            text-shadow: none !important;
+        }
+
+        /* Transforma inputs em linhas de texto para leitura */
+        .pdf-mode input, 
+        .pdf-mode textarea, 
+        .pdf-mode select {
+            background-color: transparent !important;
+            border: none !important;
+            border-bottom: 1px solid #333 !important;
+            color: #000000 !important;
+            padding: 0 5px !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            font-weight: 600 !important;
+        }
+
+        /* Ajusta as bordas das seções para preto no PDF */
+        .pdf-mode .form-container,
+        .pdf-mode .section-header,
+        .pdf-mode #preContratoSection {
+            border-color: #000000 !important;
+            box-shadow: none !important;
+            background-color: transparent !important;
+        }
+
+        /* Cabeçalhos de seção cinza claro */
+        .pdf-mode .section-header {
+            background-color: #e0e0e0 !important;
+            color: #000 !important;
+            border: 1px solid #000;
+        }
+
+        /* Esconde elementos de interface (botões) */
+        .hide-on-pdf {
+            display: none !important;
+        }
+
+        /* Garante que blocos não quebrem no meio da página */
+        .pdf-mode .grid, 
+        .pdf-mode .section-header, 
+        .pdf-mode .mb-3 {
+            break-inside: avoid;
+        }
+
+        /* Ícones pretos no PDF */
+        .pdf-mode .section-icon { fill: #000; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -286,25 +326,21 @@ HTML_TEMPLATE = """
     <main class="flex-grow flex items-center justify-center p-4">
         <div id="fichaContainer" class="form-container w-full max-w-4xl mx-auto p-6 md:p-10">
             
-            <!-- BARRA DE BUSCA RÁPIDA -->
             <div id="searchBar" class="search-container">
                 <span class="text-[#8cc63f] font-bold text-sm uppercase">Consultar Ficha:</span>
                 <input type="number" id="inputBuscarId" placeholder="ID da Ficha" class="form-input" style="width: 120px; padding: 5px;">
                 <button type="button" id="btnBuscar" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold">🔍 Buscar</button>
-                <div id="infoBusca" class="text-xs text-gray-300 ml-2"></div>
             </div>
 
             <div id="pdfHeader" class="hidden text-center mb-4">
-                <h1 class="text-3xl font-bold text-[#263318]">FICHA DE ATENDIMENTO / PRÉ-CONTRATO</h1>
-                <hr class="border-[#8cc63f] my-2">
+                <h1 class="text-3xl font-bold text-black uppercase">Ficha de Atendimento / Pré-Contrato</h1>
+                <hr class="border-black my-2">
             </div>
 
             <form id="preAtendimentoForm" class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                <!-- DADOS INICIAIS -->
                 <div class="flex flex-col gap-5">
                     <div><label class="block text-sm font-semibold mb-2 text-white">Nome do Cliente*</label><input type="text" id="nome" name="nome" class="form-input" required></div>
                     
-                    <!-- INPUTMASK TELEFONE -->
                     <div><label class="block text-sm font-semibold mb-2 text-white">Telefone / WhatsApp*</label>
                         <input type="tel" id="telefone" name="telefone" class="form-input mask-phone" placeholder="(XX) XXXXX-XXXX" inputmode="tel" required>
                     </div>
@@ -318,7 +354,6 @@ HTML_TEMPLATE = """
                             {% for opcao in empreendimentos %}<option value="{{ opcao }}">{{ opcao }}</option>{% endfor %}
                         </select>
                     </div>
-                    <!-- Gatilho -->
                     <div>
                         <label for="comprou_1o_lote" class="block text-sm font-semibold mb-2 text-white">Realizou o sonho da compra do 1º Lote?</label>
                         <select id="comprou_1o_lote" name="comprou_1o_lote" class="form-select" required>
@@ -335,7 +370,6 @@ HTML_TEMPLATE = """
                     </div>
                 </div>
 
-                <!-- LADO DIREITO (Foto e Perguntas) -->
                 <div class="flex flex-col gap-5">
                     <div class="p-4 rounded-lg bg-black/20 border border-white/10" id="photoContainer">
                         <label class="block text-sm font-semibold mb-3 text-white">Foto do Cliente</label>
@@ -379,13 +413,9 @@ HTML_TEMPLATE = """
                     <textarea id="abordagem_inicial" name="abordagem_inicial" rows="3" class="form-textarea"></textarea>
                 </div>
 
-                <!-- ============================
-                     FICHA DE CADASTRO / PRÉ-CONTRATO
-                     ============================ -->
                 <div id="preContratoSection" class="md:col-span-2 hidden border border-[var(--cor-acento)] rounded-lg p-6 bg-black/20 mt-4 transition-all duration-500">
                     <h2 class="text-2xl font-bold mb-4 text-[#8cc63f] text-center uppercase tracking-wide">Ficha de Cadastro - Pré-Contrato</h2>
 
-                    <!-- 1ª PARTE - DADOS DO IMÓVEL -->
                     <div class="section-header">
                         <svg class="section-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg> Dados do Imóvel
                     </div>
@@ -401,7 +431,6 @@ HTML_TEMPLATE = """
                         <div class="md:col-span-2"><label class="block text-xs font-semibold mb-1 text-white">Corretor (Opcional)</label><input type="text" id="corretor_pc" class="form-input"></div>
                     </div>
 
-                    <!-- 2ª PARTE - FORMA DE PAGAMENTO -->
                     <div class="section-header">
                          <svg class="section-icon" viewBox="0 0 24 24"><path d="M12.5 17.5h-4v-1.9c-1.3-.4-2.1-1.4-2.1-2.6 0-1.8 1.5-2.8 3.5-3.1v-2c-.9.1-1.6.5-1.9.9l-1.3-1c.6-.9 1.7-1.5 3.2-1.7V4h1.9v2c1.4.3 2.3 1.4 2.3 2.6 0 1.8-1.5 2.8-3.5 3.1v2.2c1.1-.1 1.9-.6 2.3-1.1l1.3 1c-.6 1.1-1.9 1.9-3.7 2.1v1.6z"/></svg> Forma de Pagamento
                     </div>
@@ -432,7 +461,6 @@ HTML_TEMPLATE = """
                         </div>
                     </div>
 
-                    <!-- 3ª PARTE - DADOS DO PROPONENTE -->
                     <div class="section-header">
                         <svg class="section-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg> Dados do Proponente
                     </div>
@@ -477,7 +505,6 @@ HTML_TEMPLATE = """
                         </div>
                     </div>
 
-                    <!-- 4ª PARTE - DADOS PROFISSIONAIS -->
                     <div class="section-header">
                          <svg class="section-icon" viewBox="0 0 24 24"><path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/></svg> Dados Profissionais
                     </div>
@@ -488,7 +515,6 @@ HTML_TEMPLATE = """
                     </div>
                     <div><label class="block text-xs font-semibold mb-1 text-white">Renda Mensal</label><input type="text" name="renda_mensal_pc" class="form-input w-full md:w-1/3 mask-money" inputmode="numeric"></div>
 
-                    <!-- 5ª PARTE - DADOS DO CÔNJUGE -->
                     <div class="section-header">
                          <svg class="section-icon" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg> Dados do Cônjuge
                     </div>
@@ -503,7 +529,6 @@ HTML_TEMPLATE = """
                         <div><label class="block text-xs font-semibold mb-1 text-white">E-mail</label><input type="email" name="email_conjuge_pc" class="form-input"></div>
                     </div>
 
-                    <!-- 6ª PARTE - PROFISSIONAL CÔNJUGE -->
                     <div class="section-header">Dados Profissionais do Cônjuge</div>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
                         <div class="md:col-span-2"><label class="block text-xs font-semibold mb-1 text-white">Empresa</label><input type="text" name="empresa_trabalha_conjuge_pc" class="form-input"></div>
@@ -512,7 +537,6 @@ HTML_TEMPLATE = """
                     </div>
                     <div><label class="block text-xs font-semibold mb-1 text-white">Renda Mensal</label><input type="text" name="renda_mensal_conjuge_pc" class="form-input w-full md:w-1/3 mask-money" inputmode="numeric"></div>
 
-                    <!-- 7ª PARTE - REFERÊNCIAS -->
                     <div class="section-header">
                         <svg class="section-icon" viewBox="0 0 24 24"><path d="M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73V18H6v-1.61c0-1.18.68-2.26 1.76-2.73 1.17-.52 2.61-.91 4.24-.91zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-2.21 0-4 1.79-4 4v2h4v-2c0-.81.25-1.56.64-2.19l.49.29zM19.13 14.1l.49-.29c.39.63.64 1.38.64 2.19v2h4v-2c0-2.21-1.79-4-4-4-.39 0-.76.04-1.13.1zM12 12c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/></svg> Referências Comerciais e Pessoais
                     </div>
@@ -525,7 +549,6 @@ HTML_TEMPLATE = """
                         {% endfor %}
                     </div>
 
-                    <!-- 8ª PARTE - FONTE -->
                     <div class="section-header">
                         <svg class="section-icon" viewBox="0 0 24 24"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1 9h2v-.5H3v-1h1v-.5H2v-1h3v4H2v-1zm-1-9h2v-.5H2v-1h1v-.5H2v-1h3v4H2v-1zM7 9h2v-.5H7v-1h1v-.5H7v-1h3v4H7v-1zm0 4h2v-.5H7v-1h1v-.5H7v-1h3v4H7v-1zM7 4h2v-.5H7v-1h1v-.5H7v-1h3v4H7v-1zM12 2l-5 5H2v6h5l5 5V2zm0 0"/></svg> Fonte de Mídia
                     </div>
@@ -535,7 +558,6 @@ HTML_TEMPLATE = """
                         {% endfor %}
                     </div>
 
-                    <!-- 9ª PARTE - CONDIÇÕES -->
                     <div class="section-header">
                          <svg class="section-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg> Condições Gerais
                     </div>
@@ -545,11 +567,10 @@ HTML_TEMPLATE = """
                         <p>3. Fica estipulado que o Foro da Comarca de Sorriso - MT será o competente para a resolução de quaisquer questões...</p>
                     </div>
 
-                    <!-- ASSINATURAS COM ESPAÇAMENTO AUMENTADO -->
                     <div class="mt-8 text-xs text-white">
-                        <p class="mb-12 font-bold text-lg">De Acordo,</p> <!-- mb-12 para dar espaço -->
+                        <p class="mb-12 font-bold text-lg">De Acordo,</p>
                         
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-12 mb-12"> <!-- gap-12 para espaçamento horizontal, mb-12 para linhas -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-12 mb-12">
                             <div class="text-center pt-8 border-t border-gray-400">COMPRADOR</div>
                             <div class="text-center pt-8 border-t border-gray-400">CORRETOR</div>
                             <div class="text-center pt-8 border-t border-gray-400">PROPRIETÁRIO/APROVAÇÃO</div>
@@ -562,7 +583,6 @@ HTML_TEMPLATE = """
                     </div>
                 </div>
 
-                <!-- ASSINATURA DIGITAL -->
                 <div class="md:col-span-2 mt-4">
                     <label class="block text-sm font-semibold mb-2 text-white">Assinatura Digital (Canvas)</label>
                     <canvas id="sigCanvas" class="signature-canvas w-full h-32 cursor-crosshair bg-white/10"></canvas>
@@ -599,15 +619,13 @@ HTML_TEMPLATE = """
                     if(!resp.ok) throw new Error("Ficha não encontrada ou erro no servidor.");
                     const dados = await resp.json();
 
-                    // 1. Preenche campos de texto e select
+                    // Preenche campos de texto e select
                     $.each(dados, function(key, value) {
                         if(value === null || value === undefined) return;
-                        
-                        // Inputs normais e Selects
+                        // Inputs normais e selects
                         $(`[name="${key}"]`).val(value);
                         
-                        // Radios
-                        // Se o valor for booleano (true/false) converte para sim/nao para bater com o radio
+                        // Radios (conversão bool -> sim/nao)
                         if (typeof value === 'boolean') {
                             let valStr = value ? 'sim' : 'nao';
                             $(`input[name="${key}"][value="${valStr}"]`).prop('checked', true);
@@ -622,7 +640,7 @@ HTML_TEMPLATE = """
                         }
                     });
 
-                    // 2. Preenche Referências
+                    // Referências (Separar string por quebra de linha)
                     if(dados.referencias_pc) {
                         const refs = dados.referencias_pc.split('\\n');
                         refs.forEach((ref, index) => {
@@ -634,7 +652,7 @@ HTML_TEMPLATE = """
                         });
                     }
 
-                    // 3. Foto Cliente
+                    // Foto Cliente
                     if(dados.foto_cliente) {
                         $('#loadedPhoto').attr('src', dados.foto_cliente).removeClass('hidden');
                         $('#photoCanvas, #videoPreview').addClass('hidden');
@@ -643,7 +661,7 @@ HTML_TEMPLATE = """
                         $('#startWebcam').addClass('hidden');
                     }
 
-                    // 4. Assinatura
+                    // Assinatura (Desenhar no Canvas)
                     if(dados.assinatura) {
                         const img = new Image();
                         img.onload = function() { ctx.drawImage(img, 0, 0); };
@@ -651,11 +669,9 @@ HTML_TEMPLATE = """
                         $('#assinatura_base64').val(dados.assinatura);
                     }
 
-                    // --- CORREÇÃO AQUI ---
-                    // Chamamos as funções de toggle FORA do loop para garantir que
-                    // os valores (.val()) já foram aplicados ao DOM corretamente.
-                    toggleP(); // Verifica se "Comprou 1o lote" é Sim e abre a ficha
-                    toggleC(); // Verifica se "Já possui corretor" e abre o campo corretor
+                    // --- [CORREÇÃO] EXECUTA TOGGLES APÓS CARREGAR DADOS ---
+                    toggleP(); // Abre Pré-Contrato se necessário
+                    toggleC(); // Abre campo Corretor se necessário
 
                     Swal.fire({icon: 'success', title: 'Ficha Carregada!', timer: 1500, showConfirmButton: false});
 
@@ -679,9 +695,10 @@ HTML_TEMPLATE = """
             const selCompra = document.getElementById('comprou_1o_lote');
             const secPre = document.getElementById('preContratoSection');
             function toggleP() {
-                if(selCompra.value === 'Sim') {
+                // Checa se tem algum dado de empreendimento PC ou se o select é Sim
+                const temDados = $('[name="empreendimento_pc"]').val() !== '';
+                if(selCompra.value === 'Sim' || temDados) {
                     secPre.classList.remove('hidden');
-                    setTimeout(() => { secPre.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
                 } else {
                     secPre.classList.add('hidden');
                 }
@@ -724,22 +741,55 @@ HTML_TEMPLATE = """
                 if(v.srcObject) v.srcObject.getTracks().forEach(t=>t.stop());
             });
 
-            // PDF
-            $('#btnGerarPDF').click(()=>{
-                const el=document.getElementById('fichaContainer');
-                $('#pdfHeader').removeClass('hidden'); $(el).addClass('pdf-mode');
-                // Esconde botões para o PDF
-                $('.btn-area, .search-container, #photoContainer button, #clearSignature').hide();
-                Swal.fire({title:'Gerando PDF...', allowOutsideClick:false, didOpen:()=>{Swal.showLoading()}});
+            // --- [CORREÇÃO] PDF MODO DOCUMENTO ---
+            $('#btnGerarPDF').click(function() {
+                const element = document.getElementById('fichaContainer');
+                const uiElements = $('.btn-area, .search-container, #photoContainer button, #clearSignature, #startWebcam, #takePhoto, #clearPhoto');
                 
-                // Pega nome para arquivo
-                let nomeArq = $('#nome').val() || 'Ficha';
+                // 1. PREPARAÇÃO VISUAL
+                $(element).addClass('pdf-mode'); 
+                $('#pdfHeader').removeClass('hidden'); 
+                uiElements.addClass('hide-on-pdf'); 
+
+                // Expande textareas para mostrar todo o texto
+                $('textarea').each(function() {
+                    this.style.height = 'auto';
+                    this.style.height = (this.scrollHeight + 5) + 'px';
+                });
+
+                // Garante que o pré-contrato esteja visível no PDF se tiver dados
+                if($('#comprou_1o_lote').val() === 'Sim' || $('[name="empreendimento_pc"]').val()) {
+                    $('#preContratoSection').removeClass('hidden');
+                }
+
+                let nomeArq = $('#nome').val() || 'Cliente';
                 nomeArq = nomeArq.replace(/[^a-z0-9]/gi, '_').toLowerCase();
 
-                html2pdf().set({margin:5, filename:`ficha_${nomeArq}.pdf`, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2, useCORS:true}, jsPDF:{unit:'mm',format:'a4'}})
-                .from(el).save().then(()=>{
-                    $(el).removeClass('pdf-mode'); $('#pdfHeader').addClass('hidden');
-                    $('.btn-area, .search-container, #photoContainer button, #clearSignature').show(); Swal.close();
+                // 2. CONFIGURAÇÃO DO PDF
+                const opt = {
+                    margin:       [10, 10, 10, 10],
+                    filename:     `ficha_${nomeArq}.pdf`,
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 2, useCORS: true, scrollY: 0, logging: false },
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                    pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } 
+                };
+
+                // 3. GERAÇÃO
+                Swal.fire({title: 'Gerando PDF...', html: 'Aguarde...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() }});
+
+                html2pdf().set(opt).from(element).save().then(function() {
+                    $(element).removeClass('pdf-mode');
+                    $('#pdfHeader').addClass('hidden');
+                    uiElements.removeClass('hide-on-pdf');
+                    $('textarea').css('height', ''); 
+                    toggleP(); 
+                    Swal.close();
+                }).catch(err => {
+                    console.error(err);
+                    Swal.fire('Erro', 'Não foi possível gerar o PDF.', 'error');
+                    $(element).removeClass('pdf-mode');
+                    uiElements.removeClass('hide-on-pdf');
                 });
             });
 
@@ -769,7 +819,6 @@ HTML_TEMPLATE = """
                     const res = await r.json();
                     if(res.success){
                         Swal.fire('Sucesso!', `Ficha Salva! ID: ${res.ticket_id || 'OK'}`, 'success').then(()=>{
-                            // Opcional: recarregar ou limpar. Vamos limpar para novo cadastro.
                             window.location.reload();
                         });
                     } else throw new Error(res.message);
@@ -809,7 +858,7 @@ def index():
             if not telefone or not nome:
                 return jsonify({'success': False, 'message': 'Dados obrigatórios faltando.'}), 400
 
-            # Prepara dados (incluindo o novo campo valor_financiamento_pc)
+            # Prepara dados
             campos = {
                 'data_hora': datetime.datetime.now(datetime.timezone.utc),
                 'nome': nome, 'telefone': telefone, 'rede_social': data.get('rede_social'),
@@ -903,28 +952,16 @@ def buscar_ficha(id_ficha):
     try:
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
-                # Seleciona TUDO
                 cur.execute("SELECT * FROM atendimentos WHERE id = %s", (id_ficha,))
-                
-                # Mapeia colunas para dicionário
                 if cur.description:
                     columns = [desc[0] for desc in cur.description]
                     row = cur.fetchone()
-                    
-                    if not row:
-                        return jsonify({}), 404
-                        
+                    if not row: return jsonify({}), 404
                     data = dict(zip(columns, row))
-                    
-                    # Converte datas e bools para JSON serializable
                     for k, v in data.items():
-                        if isinstance(v, datetime.datetime):
-                            data[k] = v.isoformat()
-                            
+                        if isinstance(v, datetime.datetime): data[k] = v.isoformat()
                     return jsonify(data)
-                
         return jsonify({}), 404
-        
     except Exception as e:
         logger.error(f"Erro Busca: {e}")
         return jsonify({'error': str(e)}), 500
