@@ -267,6 +267,11 @@ HTML_TEMPLATE = """
             border: none !important;
         }
 
+        /* 1. Fonte Menor para Caber (Geral) */
+        .pdf-mode, .pdf-mode * {
+            font-size: 0.7rem !important; /* REDUÇÃO CRÍTICA DE FONTE */
+        }
+
         .pdf-mode label, .pdf-mode span, .pdf-mode p, .pdf-mode h1, .pdf-mode h2, .pdf-mode h3, .pdf-mode div {
             color: #000000 !important;
             text-shadow: none !important;
@@ -282,6 +287,17 @@ HTML_TEMPLATE = """
             box-shadow: none !important;
             font-weight: 600 !important;
         }
+        
+        /* 2. Compactação dos Inputs e Margens */
+        .pdf-mode .form-input, .pdf-mode .form-textarea, .pdf-mode .form-select {
+             padding: 2px 5px !important;
+             margin-bottom: 0px !important;
+             height: auto !important;
+        }
+        .pdf-mode .mb-3 { margin-bottom: 0.2rem !important; }
+        .pdf-mode .gap-5 { gap: 0.5rem !important; }
+        .pdf-mode .pt-8 { padding-top: 1rem !important; }
+
 
         .pdf-mode .form-container, .pdf-mode .section-header, .pdf-mode #preContratoSection {
             border-color: #000000 !important;
@@ -293,13 +309,24 @@ HTML_TEMPLATE = """
             background-color: #e0e0e0 !important;
             color: #000 !important;
             border: 1px solid #000;
+            padding: 0.4rem 1rem !important;
+            font-size: 0.8rem !important;
+            margin-top: 0.75rem !important;
+            margin-bottom: 0.5rem !important;
         }
 
         .hide-on-pdf { display: none !important; }
+        .pdf-mode .section-icon { fill: #000; }
+
+        /* QUEBRA DE PÁGINA CRÍTICA */
+        .pdf-mode #preContratoSection {
+            page-break-before: always; /* FORÇA A NOVA PÁGINA: Ficha de Cadastro */
+            margin-top: 0 !important;
+        }
 
         .pdf-mode .grid, .pdf-mode .section-header, .pdf-mode .mb-3 { break-inside: avoid; }
-
-        .pdf-mode .section-icon { fill: #000; }
+        .pdf-mode .p-4, .pdf-mode .p-6, .pdf-mode .md\:p-10 { padding: 0 !important; }
+        /* FIM DAS ALTERAÇÕES PARA PDF */
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -403,6 +430,13 @@ HTML_TEMPLATE = """
                 <div class="md:col-span-2">
                     <label class="block text-sm font-semibold mb-2 text-white">Observações / Abordagem Inicial</label>
                     <textarea id="abordagem_inicial" name="abordagem_inicial" rows="3" class="form-textarea"></textarea>
+                </div>
+                
+                <div class="md:col-span-2 mt-4">
+                    <label class="block text-sm font-semibold mb-2 text-white">Assinatura Digital (Canvas)</label>
+                    <canvas id="sigCanvas" class="signature-canvas w-full h-32 cursor-crosshair bg-white/10"></canvas>
+                    <input type="hidden" id="assinatura_base64" name="assinatura_base64">
+                    <div class="flex justify-end mt-1"><button type="button" id="clearSignature" class="btn-acao-secundaria">Limpar Assinatura</button></div>
                 </div>
 
                 <div id="preContratoSection" class="md:col-span-2 hidden border border-[var(--cor-acento)] rounded-lg p-6 bg-black/20 mt-4 transition-all duration-500">
@@ -588,13 +622,6 @@ HTML_TEMPLATE = """
                             <div class="text-center pt-8 border-t border-gray-400">TESTEMUNHA 2</div>
                         </div>
                     </div>
-                </div>
-
-                <div class="md:col-span-2 mt-4">
-                    <label class="block text-sm font-semibold mb-2 text-white">Assinatura Digital (Canvas)</label>
-                    <canvas id="sigCanvas" class="signature-canvas w-full h-32 cursor-crosshair bg-white/10"></canvas>
-                    <input type="hidden" id="assinatura_base64" name="assinatura_base64">
-                    <div class="flex justify-end mt-1"><button type="button" id="clearSignature" class="btn-acao-secundaria">Limpar Assinatura</button></div>
                 </div>
 
                 <div class="md:col-span-2 flex flex-col md:flex-row justify-end items-center gap-4 mt-4 btn-area">
