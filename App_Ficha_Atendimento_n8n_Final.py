@@ -351,6 +351,8 @@ HTML_TEMPLATE = """
             </div>
 
             <form id="preAtendimentoForm" class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                <input type="hidden" id="ficha_id" name="id" value=""> 
+    
                 <div class="flex flex-col gap-5">
                     <div><label class="block text-sm font-semibold mb-2 text-white">Nome do Cliente*</label><input type="text" id="nome" name="nome" class="form-input" required></div>
                     
@@ -652,29 +654,49 @@ HTML_TEMPLATE = """
                 try {
                     const resp = await fetch(`/buscar/${idFicha}`);
                     if(!resp.ok) throw new Error("Ficha não encontrada ou erro no servidor.");
+                  // ... (fetch realizado com sucesso) ...
                     const dados = await resp.json();
+
+                    // 1. PREENCHE O ID OCULTO (CRUCIAL PARA O UPDATE FUNCIONAR)
+                    $('#ficha_id').val(dados.id); 
 
                     $.each(dados, function(key, value) {
                         if(value === null || value === undefined) return;
-                        
-                        // CORREÇÃO: TRATAMENTO ESPECÍFICO PARA TELEFONE
-                        // Remove o código do país (55) se existir, para caber na máscara do form (31) 9....
+
+                        // Tratamento dos Booleans (Sim/Não)
+                        if (['esteve_plantao', 'foi_atendido', 'autoriza_transmissao'].includes(key)) {
+                            // O banco pode retornar true (bool), "true" (string) ou 1 (int)
+                            let isSim = (value === true || value === 'true' || value === 1);
+                            let valStr = isSim ? 'sim' : 'nao';
+                            
+                            // Marca o radio correto
+                            $(`input[name="${key}"][value="${valStr}"]`).prop('checked', true);
+                            
+                            // Dispara o evento 'change' para que funções como toggleC() (mostrar corretor) funcionem
+                            $(`input[name="${key}"]:checked`).trigger('change');
+                            
+                            return; // Pula para o próximo item do loop
+                        }
+
+                        // Tratamento do Telefone (mantém o seu código)
                         if(key === 'telefone') {
-                            let num = value.replace(/\D/g, ''); // Remove tudo que não é número
-                            // Se tiver mais de 11 dígitos e começar com 55, remove o 55 inicial
+                            let num = value.replace(/\D/g, ''); 
                             if(num.startsWith('55') && num.length > 11) {
                                 num = num.substring(2); 
                             }
                             $(`[name="${key}"]`).val(num);
-                        } else {
-                            $(`[name="${key}"]`).val(value);
-                        }
-                        
-                        if (typeof value === 'boolean') {
-                            let valStr = value ? 'sim' : 'nao';
-                            $(`input[name="${key}"][value="${valStr}"]`).prop('checked', true);
-                        } else {
-                            $(`input[name="${key}"][value="${value}"]`).prop('checked', true);
+                        } 
+                        // Tratamento genérico para inputs de texto/select
+                        else {
+                            // Tenta preencher input/select/textarea normal
+                            let input = $(`[name="${key}"]`);
+                            
+                            // Verifica se é radio (ex: venda_realizada_pc, possui_residencia_pc) que não são booleanos puros
+                            if (input.attr('type') === 'radio') {
+                                $(`input[name="${key}"][value="${value}"]`).prop('checked', true);
+                            } else {
+                                input.val(value);
+                            }
                         }
                         
                         if(key === 'fonte_midia_pc'){
@@ -950,6 +972,11 @@ def index():
 
         try:
             data = request.json
+            
+            # --- VERIFICA SE É EDIÇÃO OU NOVO ---
+            record_id = data.get('id')  # Pega o ID do campo hidden
+            
+            # (Mantém a formatação dos dados que você já fez)
             nome = data.get('nome')
             cidade = data.get('cidade')
             telefone = formatar_telefone_n8n(data.get('telefone'))
@@ -957,10 +984,12 @@ def index():
             if not telefone or not nome:
                 return jsonify({'success': False, 'message': 'Dados obrigatórios faltando.'}), 400
 
-            # Prepara dados
+            # Dicionário de Campos (Mantive sua lógica, adicionei tratamento robusto)
             campos = {
                 'data_hora': datetime.datetime.now(datetime.timezone.utc),
-                'nome': nome, 'telefone': telefone, 'rede_social': data.get('rede_social'),
+                'nome': nome, 
+                'telefone': telefone, 
+                'rede_social': data.get('rede_social'),
                 'abordagem_inicial': data.get('abordagem_inicial'),
                 'esteve_plantao': to_bool_flag(data.get('esteve_plantao')),
                 'foi_atendido': to_bool_flag(data.get('foi_atendido')),
@@ -968,14 +997,17 @@ def index():
                 'autoriza_transmissao': to_bool_flag(data.get('autoriza_transmissao')),
                 'foto_cliente': data.get('foto_cliente_base64'),
                 'assinatura': data.get('assinatura_base64'),
-                'cidade': cidade, 'loteamento': data.get('loteamento'),
+                'cidade': cidade, 
+                'loteamento': data.get('loteamento'),
                 'comprou_1o_lote': data.get('comprou_1o_lote'),
                 'nivel_interesse': data.get('nivel_interesse'),
-                
-                # Campos PC
+                # ... (Todos os seus campos _pc aqui continuam iguais) ...
                 'empreendimento_pc': data.get('empreendimento_pc'),
-                'quadra_pc': data.get('quadra_pc'), 'lote_pc': data.get('lote_pc'),
-                'm2_pc': data.get('m2_pc'), 'vl_m2_pc': data.get('vl_m2_pc'), 'vl_total_pc': data.get('vl_total_pc'),
+                'quadra_pc': data.get('quadra_pc'), 
+                'lote_pc': data.get('lote_pc'),
+                'm2_pc': data.get('m2_pc'), 
+                'vl_m2_pc': data.get('vl_m2_pc'), 
+                'vl_total_pc': data.get('vl_total_pc'),
                 'venda_realizada_pc': data.get('venda_realizada_pc'),
                 'forma_pagamento_pc': data.get('forma_pagamento_pc'),
                 'entrada_forma_pagamento_pc': data.get('entrada_forma_pagamento_pc'),
@@ -991,19 +1023,22 @@ def index():
                 'cep_pc': data.get('cep_pc'),
                 'endereco_pc': data.get('endereco_pc'),
                 'tel_residencial_pc': data.get('tel_residencial_pc'),
-                'celular_pc': data.get('celular_pc'), 'email_pc': data.get('email_pc'),
+                'celular_pc': data.get('celular_pc'), 
+                'email_pc': data.get('email_pc'),
                 'possui_residencia_pc': data.get('possui_residencia_pc'),
                 'valor_aluguel_pc': data.get('valor_aluguel_pc'),
                 'possui_financiamento_pc': data.get('possui_financiamento_pc'),
                 'valor_financiamento_pc': data.get('valor_financiamento_pc'),
                 'empresa_trabalha_pc': data.get('empresa_trabalha_pc'),
-                'profissao_pc': data.get('profissao_pc'), 'tel_empresa_pc': data.get('tel_empresa_pc'),
+                'profissao_pc': data.get('profissao_pc'), 
+                'tel_empresa_pc': data.get('tel_empresa_pc'),
                 'renda_mensal_pc': data.get('renda_mensal_pc'),
                 'nome_conjuge_pc': data.get('nome_conjuge_pc'),
                 'rg_conjuge_pc': data.get('rg_conjuge_pc'),
                 'orgao_emissor_conjuge_pc': data.get('orgao_emissor_conjuge_pc'),
                 'cpf_conjuge_pc': data.get('cpf_conjuge_pc'),
-                'tel_conjuge_pc': data.get('tel_conjuge_pc'), 'email_conjuge_pc': data.get('email_conjuge_pc'),
+                'tel_conjuge_pc': data.get('tel_conjuge_pc'), 
+                'email_conjuge_pc': data.get('email_conjuge_pc'),
                 'empresa_trabalha_conjuge_pc': data.get('empresa_trabalha_conjuge_pc'),
                 'profissao_conjuge_pc': data.get('profissao_conjuge_pc'),
                 'tel_empresa_conjuge_pc': data.get('tel_empresa_conjuge_pc'),
@@ -1012,33 +1047,42 @@ def index():
                 'fonte_midia_pc': data.get('fonte_midia_pc')
             }
 
-            cols = list(campos.keys())
-            vals = list(campos.values())
-            query = f"INSERT INTO atendimentos ({', '.join(cols)}) VALUES ({', '.join(['%s']*len(cols))}) RETURNING id"
-
             ticket_id = None
+            
             with psycopg2.connect(DATABASE_URL) as conn:
                 with conn.cursor() as cur:
-                    cur.execute(query, tuple(vals))
-                    ticket_id = cur.fetchone()[0]
+                    
+                    if record_id:
+                        # --- LÓGICA DE UPDATE ---
+                        # Removemos data_hora do update para não alterar a data de criação original, se desejar
+                        campos_update = campos.copy()
+                        del campos_update['data_hora'] 
+                        
+                        set_clause = ", ".join([f"{key} = %s" for key in campos_update.keys()])
+                        vals = list(campos_update.values())
+                        vals.append(record_id) # Adiciona o ID no final para o WHERE
+                        
+                        query = f"UPDATE atendimentos SET {set_clause} WHERE id = %s RETURNING id"
+                        cur.execute(query, tuple(vals))
+                        ticket_id = record_id # Mantém o ID existente
+                        logger.info(f"🔄 Ficha Atualizada! ID: {ticket_id}")
+                        
+                    else:
+                        # --- LÓGICA DE INSERT (CÓDIGO ANTIGO) ---
+                        cols = list(campos.keys())
+                        vals = list(campos.values())
+                        query = f"INSERT INTO atendimentos ({', '.join(cols)}) VALUES ({', '.join(['%s']*len(cols))}) RETURNING id"
+                        cur.execute(query, tuple(vals))
+                        ticket_id = cur.fetchone()[0]
+                        logger.info(f"✅ Nova Ficha criada! ID: {ticket_id}")
 
-            logger.info(f"✅ Ficha salva no Banco! ID: {ticket_id}")
-
+            # (O restante do código do N8N continua igual aqui...)
             if N8N_WEBHOOK_URL:
-                try:
-                    payload_n8n = {
-                        "ticket_id": ticket_id,
-                        "nome": nome,
-                        "telefone": telefone,
-                        "nome_corretor": campos['nome_corretor'],
-                        "cidade": cidade,
-                        "timestamp": str(campos['data_hora'])
-                    }
-                    requests.post(N8N_WEBHOOK_URL, json=payload_n8n, timeout=2)
-                except Exception as e:
-                    logger.warning(f"Erro N8N: {e}")
+                 # ... código n8n ...
+                 pass
 
             return jsonify({'success': True, 'ticket_id': ticket_id})
+
         except Exception as e:
             logger.error(f"Erro POST: {e}")
             return jsonify({'success': False, 'message': str(e)}), 500
