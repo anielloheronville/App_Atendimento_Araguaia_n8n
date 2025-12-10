@@ -19,6 +19,12 @@ def to_bool_flag(value):
     if value is None: return False
     return str(value).strip().lower() in ('1', 'true', 'sim', 'yes')
 
+def limpar_texto(texto):
+    """Remove quebras de linha que quebram a exportação CSV."""
+    if texto:
+        return texto.replace('\n', ' - ').replace('\r', '')
+    return texto
+
 # --- CONFIGURAÇÕES DE PRODUÇÃO (RENDER) ---
 N8N_WEBHOOK_URL = os.environ.get("N8N_WEBHOOK_URL")
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -52,7 +58,7 @@ def init_db():
         loteamento TEXT
     )
     '''
-    # Migrações
+    # Migrações - Incluindo os campos novos
     migrations = [
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS comprou_1o_lote TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nivel_interesse TEXT;",
@@ -99,7 +105,9 @@ def init_db():
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS tel_empresa_conjuge_pc TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS renda_mensal_conjuge_pc TEXT;",
         "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS referencias_pc TEXT;",
-        "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS fonte_midia_pc TEXT;"
+        "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS fonte_midia_pc TEXT;",
+        "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS outros_lotes_pc TEXT;",
+        "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS possui_outro_lote TEXT;"
     ]
 
     try:
@@ -413,11 +421,13 @@ HTML_TEMPLATE = """
                         <div><span class="block text-sm font-semibold mb-2 text-white">Já esteve em um plantão?*</span>
                             <div class="flex gap-4"><label class="flex items-center"><input type="radio" name="esteve_plantao" value="sim" required class="accent-[#8cc63f]"><span class="ml-2 text-white">Sim</span></label><label class="flex items-center"><input type="radio" name="esteve_plantao" value="nao" class="accent-[#8cc63f]"><span class="ml-2 text-white">Não</span></label></div>
                         </div>
+                        
                         <div><span class="block text-sm font-semibold mb-2 text-white">Já possui corretor?*</span>
                             <div class="flex gap-4"><label class="flex items-center"><input type="radio" name="foi_atendido" value="sim" id="atendido_sim" required class="accent-[#8cc63f]"><span class="ml-2 text-white">Sim</span></label><label class="flex items-center"><input type="radio" name="foi_atendido" value="nao" id="atendido_nao" class="accent-[#8cc63f]"><span class="ml-2 text-white">Não</span></label></div>
                         </div>
+                        
                         <div id="campoNomeCorretor" class="hidden p-3 bg-[#8cc63f]/10 border border-[#8cc63f] rounded-md">
-                            <label class="block text-sm font-bold mb-1 text-[#8cc63f]">Selecione o Corretor:</label>
+                            <label id="label_corretor" class="block text-sm font-bold mb-1 text-[#8cc63f]">Selecione o Corretor:</label>
                             <select id="nome_corretor" name="nome_corretor" class="form-select font-semibold">
                                 <option value="" disabled selected>Selecione...</option>
                                 {% for corretor in corretores %}<option value="{{ corretor }}">{{ corretor }}</option>{% endfor %}
@@ -447,6 +457,22 @@ HTML_TEMPLATE = """
                     <div class="section-header">
                         <svg class="section-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg> Dados do Imóvel
                     </div>
+
+                    <div class="mb-4 p-4 border border-[#8cc63f] rounded-md bg-[#8cc63f]/10 shadow-lg">
+                         <span class="block text-sm font-extrabold text-[#8cc63f] mb-3 uppercase tracking-wider">⚡ Este cliente adquirirá MAIS DE UM LOTE neste empreendimento?</span>
+                         <div class="flex gap-6">
+                             <label class="flex items-center text-white cursor-pointer hover:text-[#8cc63f] transition bg-black/30 p-2 rounded w-full">
+                                 <input type="radio" name="possui_outro_lote" value="Sim" class="accent-[#8cc63f] mr-3 scale-125"> 
+                                 <span class="font-bold">SIM</span> 
+                                 <span class="text-xs ml-2 opacity-70">(Habilitar cadastro sequencial)</span>
+                             </label>
+                             <label class="flex items-center text-white cursor-pointer hover:text-[#8cc63f] transition bg-black/30 p-2 rounded w-full">
+                                 <input type="radio" name="possui_outro_lote" value="Não" class="accent-[#8cc63f] mr-3 scale-125" checked> 
+                                 <span class="font-bold">NÃO</span>
+                                 <span class="text-xs ml-2 opacity-70">(Apenas este lote)</span>
+                             </label>
+                         </div>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
                         <div><label class="block text-xs font-semibold mb-1 text-white">Empreendimento</label><input type="text" name="empreendimento_pc" class="form-input"></div>
                         <div><label class="block text-xs font-semibold mb-1 text-white">QD</label><input type="text" name="quadra_pc" class="form-input"></div>
@@ -458,6 +484,11 @@ HTML_TEMPLATE = """
                         <div><label class="block text-xs font-semibold mb-1 text-white">VL. Total</label><input type="text" name="vl_total_pc" class="form-input mask-money" inputmode="numeric"></div>
                         <div class="md:col-span-2"><label class="block text-xs font-semibold mb-1 text-white">Corretor (Opcional)</label><input type="text" id="corretor_pc" class="form-input"></div>
                     </div>
+                    <div class="mb-3">
+                         <label class="block text-xs font-semibold mb-1 text-white">Observação sobre Outros Lotes (Ex: QD 10 LT 11 e 12):</label>
+                         <input type="text" name="outros_lotes_pc" class="form-input" placeholder="Caso queira anotar aqui os outros lotes...">
+                    </div>
+
 
                     <div class="section-header">
                          <svg class="section-icon" viewBox="0 0 24 24"><path d="M12.5 17.5h-4v-1.9c-1.3-.4-2.1-1.4-2.1-2.6 0-1.8 1.5-2.8 3.5-3.1v-2c-.9.1-1.6.5-1.9.9l-1.3-1c.6-.9 1.7-1.5 3.2-1.7V4h1.9v2c1.4.3 2.3 1.4 2.3 2.6 0 1.8-1.5 2.8-3.5 3.1v2.2c1.1-.1 1.9-.6 2.3-1.1l1.3 1c-.6 1.1-1.9 1.9-3.7 2.1v1.6z"/></svg> Forma de Pagamento
@@ -654,44 +685,28 @@ HTML_TEMPLATE = """
                 try {
                     const resp = await fetch(`/buscar/${idFicha}`);
                     if(!resp.ok) throw new Error("Ficha não encontrada ou erro no servidor.");
-                  // ... (fetch realizado com sucesso) ...
                     const dados = await resp.json();
 
-                    // 1. PREENCHE O ID OCULTO (CRUCIAL PARA O UPDATE FUNCIONAR)
+                    // 1. PREENCHE O ID OCULTO
                     $('#ficha_id').val(dados.id); 
 
                     $.each(dados, function(key, value) {
                         if(value === null || value === undefined) return;
 
-                        // Tratamento dos Booleans (Sim/Não)
                         if (['esteve_plantao', 'foi_atendido', 'autoriza_transmissao'].includes(key)) {
-                            // O banco pode retornar true (bool), "true" (string) ou 1 (int)
                             let isSim = (value === true || value === 'true' || value === 1);
                             let valStr = isSim ? 'sim' : 'nao';
-                            
-                            // Marca o radio correto
                             $(`input[name="${key}"][value="${valStr}"]`).prop('checked', true);
-                            
-                            // Dispara o evento 'change' para que funções como toggleC() (mostrar corretor) funcionem
                             $(`input[name="${key}"]:checked`).trigger('change');
-                            
-                            return; // Pula para o próximo item do loop
+                            return;
                         }
 
-                        // Tratamento do Telefone (mantém o seu código)
                         if(key === 'telefone') {
                             let num = value.replace(/\D/g, ''); 
-                            if(num.startsWith('55') && num.length > 11) {
-                                num = num.substring(2); 
-                            }
+                            if(num.startsWith('55') && num.length > 11) num = num.substring(2); 
                             $(`[name="${key}"]`).val(num);
-                        } 
-                        // Tratamento genérico para inputs de texto/select
-                        else {
-                            // Tenta preencher input/select/textarea normal
+                        } else {
                             let input = $(`[name="${key}"]`);
-                            
-                            // Verifica se é radio (ex: venda_realizada_pc, possui_residencia_pc) que não são booleanos puros
                             if (input.attr('type') === 'radio') {
                                 $(`input[name="${key}"][value="${value}"]`).prop('checked', true);
                             } else {
@@ -704,6 +719,16 @@ HTML_TEMPLATE = """
                             fontes.forEach(f => $(`input[name="fonte_midia_pc"][value="${f}"]`).prop('checked', true));
                         }
                     });
+
+                    // --- SEGURANÇA VISUAL (FRONTEND) ---
+                    // Trava os campos de Nome e Corretor
+                    $('#nome').prop('readonly', true).addClass('bg-gray-800 text-gray-500 cursor-not-allowed border-red-900');
+                    $('#nome_corretor').prop('disabled', true).addClass('bg-gray-800 text-gray-500 cursor-not-allowed border-red-900');
+                    
+                    if(dados.nome_corretor) {
+                        $('#campoNomeCorretor').removeClass('hidden');
+                    }
+                    // -----------------------------------
 
                     if(dados.referencias_pc) {
                         const refs = dados.referencias_pc.split('\\n');
@@ -733,8 +758,6 @@ HTML_TEMPLATE = """
 
                     toggleP(); 
                     toggleC(); 
-                    
-                    // --- ATUALIZA BOTÃO WHATSAPP ---
                     $('#telefone').trigger('input'); 
 
                     Swal.fire({icon: 'success', title: 'Ficha Carregada!', timer: 1500, showConfirmButton: false});
@@ -755,13 +778,8 @@ HTML_TEMPLATE = """
                     const res = await fetch(`https://brasilapi.com.br/api/cep/v1/${cep}`);
                     if(!res.ok) throw new Error('CEP não encontrado');
                     const data = await res.json();
-                    
-                    // Preenche Endereço (Rua e Bairro)
                     $('[name="endereco_pc"]').val(`${data.street}, ${data.neighborhood}`);
-                    
-                    // Preenche Cidade (Se estiver vazia ou for diferente)
                     $('[name="cidade"]').val(data.city);
-                    
                     Swal.close();
                 } catch(e) {
                     Swal.fire('Erro', 'Não foi possível buscar o CEP.', 'error');
@@ -771,7 +789,6 @@ HTML_TEMPLATE = """
             // --- BOTÃO WHATSAPP ---
             $('#telefone').on('input', function(){
                 const val = $(this).val().replace(/\D/g, '');
-                // Se tiver 10 ou 11 dígitos (DDD + Numero), mostra o botão
                 if(val.length >= 10) {
                     $('#btnZap').removeClass('hidden');
                 } else {
@@ -785,16 +802,34 @@ HTML_TEMPLATE = """
             });
 
 
-            // Toggle Corretor
+            // Toggle Corretor (ATUALIZADO PARA EXIBIR LISTA SEMPRE)
             const atSim = document.getElementById('atendido_sim');
             const atNao = document.getElementById('atendido_nao');
             const boxCorretor = document.getElementById('campoNomeCorretor');
             const inCorretor = document.getElementById('nome_corretor');
+            const labelCorretor = document.getElementById('label_corretor');
+
             function toggleC() {
-                if(atSim.checked){ boxCorretor.classList.remove('hidden'); inCorretor.required=true; }
-                else { boxCorretor.classList.add('hidden'); inCorretor.required=false; inCorretor.value=''; }
+                // Se algum dos dois estiver marcado, mostra a caixa
+                if(atSim.checked || atNao.checked) {
+                    boxCorretor.classList.remove('hidden');
+                    inCorretor.required = true;
+                } else {
+                    // Se nenhum estiver marcado (estado inicial)
+                    boxCorretor.classList.add('hidden');
+                    inCorretor.required = false;
+                }
+
+                if (atSim.checked) {
+                    labelCorretor.innerText = "Indique seu corretor atual:*";
+                } 
+                else if (atNao.checked) {
+                    labelCorretor.innerText = "Escolha um corretor para lhe atender:*";
+                }
             }
-            atSim.addEventListener('change', toggleC); atNao.addEventListener('change', toggleC);
+            atSim.addEventListener('change', toggleC); 
+            atNao.addEventListener('change', toggleC);
+
 
             // Toggle Pré-Contrato & Scroll Suave
             const selCompra = document.getElementById('comprou_1o_lote');
@@ -850,12 +885,10 @@ HTML_TEMPLATE = """
                 const element = document.getElementById('fichaContainer');
                 const uiElements = $('.btn-area, .search-container, #photoContainer button, #clearSignature, #startWebcam, #takePhoto, #clearPhoto, .hide-on-pdf');
                 
-                // 1. PREPARAÇÃO VISUAL
                 $(element).addClass('pdf-mode'); 
                 $('#pdfHeader').removeClass('hidden'); 
                 uiElements.addClass('hidden'); 
 
-                // Expande textareas
                 $('textarea').each(function() {
                     this.style.height = 'auto';
                     this.style.height = (this.scrollHeight + 5) + 'px';
@@ -868,7 +901,6 @@ HTML_TEMPLATE = """
                 let nomeArq = $('#nome').val() || 'Cliente';
                 nomeArq = nomeArq.replace(/[^a-z0-9]/gi, '_').toLowerCase();
 
-                // 2. CONFIGURAÇÃO DO PDF
                 const opt = {
                     margin:       [10, 10, 10, 10],
                     filename:     `ficha_${nomeArq}.pdf`,
@@ -878,7 +910,6 @@ HTML_TEMPLATE = """
                     pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } 
                 };
 
-                // 3. GERAÇÃO
                 Swal.fire({title: 'Gerando PDF...', html: 'Aguarde...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() }});
 
                 html2pdf().set(opt).from(element).save().then(function() {
@@ -900,10 +931,8 @@ HTML_TEMPLATE = """
             $('#preAtendimentoForm').submit(async function(e){
                 e.preventDefault();
 
-                // --- VALIDAÇÃO VISUAL ---
                 let valid = true;
                 $('[required]').each(function(){
-                    // Verifica se está visível e vazio
                     if($(this).is(':visible') && !$(this).val()){
                         $(this).addClass('input-error');
                         valid = false;
@@ -922,26 +951,54 @@ HTML_TEMPLATE = """
                 
                 const fd = new FormData(this); const d = {}; fd.forEach((v,k)=>d[k]=v);
                 
-                // Checkboxes Fonte Midia
                 const fontes = [];
                 $('input[name="fonte_midia_pc"]:checked').each(function(){ fontes.push($(this).val()); });
                 d.fonte_midia_pc = fontes.join(', ');
 
-                // Referencias
                 const refs=[]; for(let i=1;i<=5;i++){ if(d[`ref_nome_${i}`]||d[`ref_tel_${i}`]) refs.push(`${d[`ref_nome_${i}`]} - ${d[`ref_tel_${i}`]}`); }
                 d.referencias_pc=refs.join('\\n');
 
                 d.esteve_plantao = $('input[name="esteve_plantao"]:checked').val() === 'sim' ? 1 : 0;
                 d.foi_atendido = $('input[name="foi_atendido"]:checked').val() === 'sim' ? 1 : 0;
                 d.autoriza_transmissao = $('input[name="autoriza_transmissao"]:checked').val() === 'sim' ? 1 : 0;
+                
+                // --- LÓGICA DE MÚLTIPLOS LOTES ---
+                const isMultiplo = $('input[name="possui_outro_lote"]:checked').val() === 'Sim';
 
                 try {
                     const r = await fetch('/', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
                     const res = await r.json();
+                    
                     if(res.success){
-                        Swal.fire('Sucesso!', `Ficha Salva! ID: ${res.ticket_id || 'OK'}`, 'success').then(()=>{
-                            window.location.reload();
-                        });
+                        
+                        // LÓGICA NOVA: Se for múltiplo, oferece limpar apenas o lote
+                        if(isMultiplo) {
+                             Swal.fire({
+                                title: 'Ficha Salva!', 
+                                text: `ID: ${res.ticket_id}. Deseja manter os dados do cliente para cadastrar o PRÓXIMO LOTE?`, 
+                                icon: 'success',
+                                showCancelButton: true,
+                                confirmButtonText: 'Sim, Próximo Lote',
+                                cancelButtonText: 'Não, Finalizar',
+                                confirmButtonColor: '#8cc63f'
+                             }).then((result) => {
+                                if (result.isConfirmed) {
+                                    // Limpa apenas os dados do lote para nova inserção
+                                    $('#ficha_id').val(''); // Garante novo ID
+                                    $('[name="quadra_pc"], [name="lote_pc"], [name="m2_pc"], [name="vl_m2_pc"], [name="vl_total_pc"]').val('');
+                                    $('[name="entrada_forma_pagamento_pc"], [name="vl_parcelas_pc"]').val('');
+                                    // Rola a tela até a parte do imóvel
+                                    document.getElementById('preContratoSection').scrollIntoView({ behavior: 'smooth' });
+                                } else {
+                                    window.location.reload();
+                                }
+                             });
+                        } else {
+                             Swal.fire('Sucesso!', `Ficha Salva! ID: ${res.ticket_id}`, 'success').then(()=>{
+                                window.location.reload();
+                            });
+                        }
+
                     } else throw new Error(res.message);
                 } catch(err) {
                     Swal.fire('Erro', err.message, 'error');
@@ -974,9 +1031,8 @@ def index():
             data = request.json
             
             # --- VERIFICA SE É EDIÇÃO OU NOVO ---
-            record_id = data.get('id')  # Pega o ID do campo hidden
+            record_id = data.get('id')  # Pega o ID do campo hidden se existir
             
-            # (Mantém a formatação dos dados que você já fez)
             nome = data.get('nome')
             cidade = data.get('cidade')
             telefone = formatar_telefone_n8n(data.get('telefone'))
@@ -984,16 +1040,16 @@ def index():
             if not telefone or not nome:
                 return jsonify({'success': False, 'message': 'Dados obrigatórios faltando.'}), 400
 
-            # Dicionário de Campos (Mantive sua lógica, adicionei tratamento robusto)
+            # Dicionário de Campos (Incluindo os novos campos de Lotes Extras)
             campos = {
                 'data_hora': datetime.datetime.now(datetime.timezone.utc),
                 'nome': nome, 
                 'telefone': telefone, 
                 'rede_social': data.get('rede_social'),
-                'abordagem_inicial': data.get('abordagem_inicial'),
+                'abordagem_inicial': limpar_texto(data.get('abordagem_inicial')), 
                 'esteve_plantao': to_bool_flag(data.get('esteve_plantao')),
                 'foi_atendido': to_bool_flag(data.get('foi_atendido')),
-                'nome_corretor': data.get('nome_corretor') if to_bool_flag(data.get('foi_atendido')) else None,
+                'nome_corretor': data.get('nome_corretor'), # Salva corretor sempre
                 'autoriza_transmissao': to_bool_flag(data.get('autoriza_transmissao')),
                 'foto_cliente': data.get('foto_cliente_base64'),
                 'assinatura': data.get('assinatura_base64'),
@@ -1001,7 +1057,6 @@ def index():
                 'loteamento': data.get('loteamento'),
                 'comprou_1o_lote': data.get('comprou_1o_lote'),
                 'nivel_interesse': data.get('nivel_interesse'),
-                # ... (Todos os seus campos _pc aqui continuam iguais) ...
                 'empreendimento_pc': data.get('empreendimento_pc'),
                 'quadra_pc': data.get('quadra_pc'), 
                 'lote_pc': data.get('lote_pc'),
@@ -1043,8 +1098,10 @@ def index():
                 'profissao_conjuge_pc': data.get('profissao_conjuge_pc'),
                 'tel_empresa_conjuge_pc': data.get('tel_empresa_conjuge_pc'),
                 'renda_mensal_conjuge_pc': data.get('renda_mensal_conjuge_pc'),
-                'referencias_pc': data.get('referencias_pc'),
-                'fonte_midia_pc': data.get('fonte_midia_pc')
+                'referencias_pc': limpar_texto(data.get('referencias_pc')), 
+                'fonte_midia_pc': data.get('fonte_midia_pc'),
+                'outros_lotes_pc': data.get('outros_lotes_pc'),   # Novo Campo
+                'possui_outro_lote': data.get('possui_outro_lote') # Novo Campo
             }
 
             ticket_id = None
@@ -1054,9 +1111,17 @@ def index():
                     
                     if record_id:
                         # --- LÓGICA DE UPDATE ---
-                        # Removemos data_hora do update para não alterar a data de criação original, se desejar
+                        # Removemos data_hora do update para não alterar a data de criação original
                         campos_update = campos.copy()
                         del campos_update['data_hora'] 
+                        
+                        # --- SEGURANÇA BACKEND ---
+                        # Removemos nome e corretor para impedir alteração via POST após criação (opcional, mas seguro)
+                        if 'nome' in campos_update: 
+                            del campos_update['nome']
+                        if 'nome_corretor' in campos_update: 
+                            del campos_update['nome_corretor']
+                        # -----------------------------
                         
                         set_clause = ", ".join([f"{key} = %s" for key in campos_update.keys()])
                         vals = list(campos_update.values())
@@ -1064,11 +1129,11 @@ def index():
                         
                         query = f"UPDATE atendimentos SET {set_clause} WHERE id = %s RETURNING id"
                         cur.execute(query, tuple(vals))
-                        ticket_id = record_id # Mantém o ID existente
+                        ticket_id = record_id 
                         logger.info(f"🔄 Ficha Atualizada! ID: {ticket_id}")
                         
                     else:
-                        # --- LÓGICA DE INSERT (CÓDIGO ANTIGO) ---
+                        # --- LÓGICA DE INSERT ---
                         cols = list(campos.keys())
                         vals = list(campos.values())
                         query = f"INSERT INTO atendimentos ({', '.join(cols)}) VALUES ({', '.join(['%s']*len(cols))}) RETURNING id"
@@ -1076,9 +1141,9 @@ def index():
                         ticket_id = cur.fetchone()[0]
                         logger.info(f"✅ Nova Ficha criada! ID: {ticket_id}")
 
-            # (O restante do código do N8N continua igual aqui...)
             if N8N_WEBHOOK_URL:
-                 # ... código n8n ...
+                 # Se houver webhook configurado, envia os dados (opcional)
+                 # requests.post(N8N_WEBHOOK_URL, json={**campos, 'id': ticket_id})
                  pass
 
             return jsonify({'success': True, 'ticket_id': ticket_id})
@@ -1102,6 +1167,7 @@ def buscar_ficha(id_ficha):
                     row = cur.fetchone()
                     if not row: return jsonify({}), 404
                     data = dict(zip(columns, row))
+                    # Converte datas para string para o JSON não quebrar
                     for k, v in data.items():
                         if isinstance(v, datetime.datetime): data[k] = v.isoformat()
                     return jsonify(data)
@@ -1110,6 +1176,7 @@ def buscar_ficha(id_ficha):
         logger.error(f"Erro Busca: {e}")
         return jsonify({'error': str(e)}), 500
 
+# --- ROTA DE AVALIAÇÃO (Opcional, se usar estrelas) ---
 @app.route('/avaliar', methods=['POST'])
 def avaliar_atendimento():
     if not DATABASE_URL: return jsonify({'success': False}), 500
@@ -1129,4 +1196,5 @@ def avaliar_atendimento():
         return jsonify({'success': False}), 500
 
 if __name__ == '__main__':
+    # Roda a aplicação
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
